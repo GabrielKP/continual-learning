@@ -12,20 +12,21 @@ class GrammarGen():
       have same output
     """
 
-    def __init__(self):
-        self.grammar = {
-            'START': ['A'],
-            'A': ['D','C1'],
-            'C1': ['G1','F'],
-            'G1': ['F'],
-            'D': ['C1'],
-            'F': ['C2', 'END'],
-            'C2': ['END', 'G2'],
-            'G2': ['END']
-             }
+    def __init__(self, grammar=None ):
+        if grammar is None:
+            self.grammar = {
+                'START': ['A'],
+                'A': ['D','C1'],
+                'C1': ['G1','F'],
+                'G1': ['F'],
+                'D': ['C1'],
+                'F': ['C2', 'END'],
+                'C2': ['END', 'G2'],
+                'G2': ['END']
+                }
+        else:
+            self.grammar = grammar
         self._initOutput()
-        print( self.stim2out )
-
 
     def _initOutput(self):
         """
