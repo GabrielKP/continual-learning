@@ -49,8 +49,11 @@ class GrammarGen():
     def __len__(self):
         return len(self.cores)
 
-    def generateSpecific(self, choiceArray):
-        pass
+    def stim2seqs(self, stimuliSequences):
+        seqs = []
+        for label, stimulusSequence in stimuliSequences:
+            seqs.append( ( label, [ self.cores[stimulus] for stimulus in stimulusSequence ] ) )
+        return seqs
 
     def generate(self, n):
         ret = []
@@ -64,12 +67,12 @@ class GrammarGen():
                 # Choose next
                 r = random.randint( 0, len( self.grammar[current] ) - 1 )
                 current = self.grammar[current][r]
-            ret.append( token )
+            ret.append( ( 1, token, ) )
         return ret
 
-    def out2read(self, seqs):
+    def seqs2stim(self, seqs):
         o2r = { v: k for k, v in self.cores.items() }
-        return [ [ o2r[stim] for stim in seq ] for seq in seqs ]
+        return [ [ o2r[stim] for stim in seq ] for _,seq in seqs ]
 
     def generateUngrammatical(self, n):
         pass
