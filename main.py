@@ -5,6 +5,7 @@ from torch.utils.data.dataset import Dataset
 import numpy as np
 from grammar import GrammarGen
 
+from torch import nn
 from torch.utils.data import DataLoader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -21,14 +22,27 @@ class SequenceDataset( Dataset ):
             size (int): amount of sequences generated
             grammar (dict): dictionary specifying the grammar
         """
-        self.Grammar = GrammarGen( grammar )
-        self.seqs = self.Grammar.generate( size )
+        self.grammar = GrammarGen( grammar )
+        self.seqs = self.grammar.generate( size )
 
     def __len__(self):
         return len( self.seqs )
 
     def __getitem__(self, idx):
         return ( 1, self.seqs[idx], )
+
+class SequenceClassificationModel(nn.Module):
+
+    def __init__(self, stimuli_dim, hidden_dim, emb_dim):
+        super(SequenceClassificationModel, self).__init__()
+        self.emb = nn.EmbeddingBag(stimuli_dim, emb_dim)
+        #self.lstm = nn.LSTM( emb_dim, hidden_dim )
+        self.lin = nn.Linear( emb_dim, 1 )
+
+    def forward(self, seqs, offsets):
+        embedded = self.emb( seqs, offsets )
+        return self.lin( embedded )
+
 
 def collate_batch( batch ):
     """
@@ -54,8 +68,12 @@ def main():
 
     dataloader = DataLoader( dataset, batch_size=3, shuffle=False, collate_fn=collate_batch )
 
-    for (a,b,c) in dataloader:
-        print( a, b, c )
+    # for (a,b,c) in dataloader:
+    #     print( a, b, c )
+    emsize = 5
+    model = SequenceClassificationModel( len(dataset.grammar), 0, emsize )
+
+
 
 
 if __name__ == '__main__':
