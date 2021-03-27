@@ -46,10 +46,10 @@ class GrammarGen():
         self.stim2out = stimulusToOutput
         self.cores = cores
 
-    def generateSpecific( choiceArray ):
+    def generateSpecific(self, choiceArray):
         pass
 
-    def generate(self, n ):
+    def generate(self, n):
         ret = []
         for _ in range(n):
             token = []
@@ -67,3 +67,6 @@ class GrammarGen():
     def out2read(self, seqs):
         o2r = { v: k for k, v in self.cores.items() }
         return [ [ o2r[stim] for stim in seq ] for seq in seqs ]
+
+    def generateUngrammatical(self, n):
+        pass
