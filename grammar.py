@@ -46,6 +46,9 @@ class GrammarGen():
         self.stim2out = stimulusToOutput
         self.cores = cores
 
+    def __len__(self):
+        return len(self.cores)
+
     def generateSpecific(self, choiceArray):
         pass
 
