@@ -18,21 +18,20 @@ class SequenceDataset( Dataset ):
     Dataset for Sequences
     """
 
-    def __init__( self, size, grammar=None ):
+    def __init__( self, seqs ):
         """
         https://pytorch.org/tutorials/beginner/data_loading_tutorial.html
         Args:
             size (int): amount of sequences generated
             grammar (dict): dictionary specifying the grammar
         """
-        self.grammar = GrammarGen( grammar )
-        self.seqs = self.grammar.generate( size )
+        self.seqs = seqs
 
     def __len__(self):
         return len( self.seqs )
 
     def __getitem__(self, idx):
-        return ( 1, self.seqs[idx], )
+        return self.seqs[idx]
 
 
 class SequenceClassificationModel(nn.Module):
@@ -111,12 +110,13 @@ def get_data(train_ds, valid_ds, bs):
 
 def main():
     bs = 3
-    train_ds, valid_ds = SequenceDataset( 60 ), SequenceDataset( 12 )
+    ggen = GrammarGen()
+    train_ds, valid_ds = SequenceDataset( ggen.generate( 60 ) ), SequenceDataset( ggen.generate( 12 ) )
     train_dl, valid_dl = get_data( train_ds, valid_ds, bs )
 
     lr = 0.1
     emsize = 5
-    stimuli_dim = len( train_ds.grammar )
+    stimuli_dim = len( ggen )
 
     model, opt = get_model( stimuli_dim, 0, emsize, lr )
 
@@ -124,6 +124,34 @@ def main():
 
     epochs = 3
     fit( epochs, model, loss_func, opt, train_dl, valid_dl )
+
+    # Testsequence
+    teststimuliSequence = [
+        ( 1, ['A','C','F','C','G'], ),
+        ( 1, ['A','D','C','F','G'], ),
+        ( 1, ['A','C','G','F','C'], ),
+        ( 1, ['A','D','C','G','F'], ),
+        ( 0, ['A','D','C','F','G'], ),
+        ( 0, ['A','D','F','C','G'], ),
+        ( 0, ['A','D','G','C','F'], ),
+        ( 0, ['A','D','G','F','C'], ),
+        ( 0, ['A','G','C','F','G'], ),
+        ( 0, ['A','G','F','G','C'], ),
+        ( 0, ['A','G','D','C','F'], ),
+        ( 0, ['A','G','F','D','C'], ),
+    ]
+    test_ds = SequenceDataset( ggen.stim2seqs( teststimuliSequence ) )
+    test_dl = DataLoader( test_ds, batch_size=bs * 2, collate_fn=collate_batch )
+    model.eval()
+    with torch.no_grad():
+        losses, nums = zip(
+            *[loss_batch(model, loss_func, labels, seqs, offsets) for labels, seqs, offsets in test_dl]
+        )
+        test_loss = np.sum( np.multiply(losses, nums) ) / np.sum( nums )
+        for labels, seqs, offsets in test_dl:
+            print( f'model: {model(seqs, offsets)} label: {labels} ')
+
+    print( "Total loss: ", test_loss )
 
 
 if __name__ == '__main__':
