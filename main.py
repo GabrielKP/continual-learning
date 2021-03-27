@@ -63,6 +63,16 @@ def collate_batch( batch ):
     seq_list = torch.cat( seq_list )
     return label_list.to( device ), seq_list.to( device ), offsets.to( device )
 
+def loss_batch(model, loss_func, xb, yb, opt=None):
+    loss = loss_func(model(xb), yb)
+
+    if opt is not None:
+        loss.backward()
+        opt.step()
+        opt.zero_grad()
+
+    return loss.item(), len(xb)
+
 def main():
     dataset = SequenceDataset( 21 )
 
@@ -72,7 +82,6 @@ def main():
     #     print( a, b, c )
     emsize = 5
     model = SequenceClassificationModel( len(dataset.grammar), 0, emsize )
-
 
 
 
