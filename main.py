@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 class SequenceDataset( Dataset ):
     """
     Dataset for Sequences
@@ -32,6 +33,7 @@ class SequenceDataset( Dataset ):
 
     def __getitem__(self, idx):
         return ( 1, self.seqs[idx], )
+
 
 class SequenceClassificationModel(nn.Module):
 
@@ -66,6 +68,7 @@ def collate_batch( batch ):
     seq_list = torch.cat( seq_list )
     return label_list.to( device ), seq_list.to( device ), offsets.to( device )
 
+
 def loss_batch(model, loss_func, labels, seqs, offsets, opt=None):
     labels = labels.unsqueeze(1)
     loss = loss_func(model(seqs, offsets), labels)
@@ -76,6 +79,7 @@ def loss_batch(model, loss_func, labels, seqs, offsets, opt=None):
         opt.zero_grad()
 
     return loss.item(), len(labels)
+
 
 def fit(epochs, model, loss_func, opt, train_dl):
     for epoch in range(epochs):
@@ -93,6 +97,7 @@ def get_data(train_ds, valid_ds, bs):
         DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=collate_batch ),
         DataLoader( valid_ds, batch_size=bs * 2 ),
     )
+
 
 def main():
     bs = 3
@@ -123,8 +128,6 @@ def main():
             print( model(seqs, offsets) )
             print( loss_batch(model, loss_func, labels, seqs, offsets) )
         break
-
-
 
 
 if __name__ == '__main__':
