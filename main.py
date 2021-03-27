@@ -1,6 +1,7 @@
 # Main file
 
 import torch, torchvision
+from torch.utils import data
 from torch.utils.data.dataset import Dataset
 import numpy as np
 from grammar import GrammarGen
@@ -39,7 +40,7 @@ class SequenceClassificationModel(nn.Module):
         self.emb = nn.EmbeddingBag(stimuli_dim, emb_dim)
         #self.lstm = nn.LSTM( emb_dim, hidden_dim )
         self.lin = nn.Linear( emb_dim, 1 )
-        self.act = nn.ReLU()
+        self.act = nn.Sigmoid()
 
     def forward(self, seqs, offsets):
         embedded = self.emb( seqs, offsets )
@@ -87,18 +88,34 @@ def get_model(stimuli_dim, hidden_dim, embedding_dim, lr):
     model = SequenceClassificationModel( stimuli_dim, hidden_dim, embedding_dim )
     return model, optim.SGD(model.parameters(), lr=lr)
 
+def get_data(train_ds, valid_ds, bs):
+    return (
+        DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=collate_batch ),
+        DataLoader( valid_ds, batch_size=bs * 2 ),
+    )
+
 def main():
-    dataset = SequenceDataset( 21 )
+    bs = 3
+    train_ds, valid_ds = SequenceDataset( 60 ), SequenceDataset( 12 )
+    train_dl, valid_dl = get_data( train_ds, valid_ds, bs )
 
-    dataloader = DataLoader( dataset, batch_size=3, shuffle=False, collate_fn=collate_batch )
-
-    lr = 0.5
+    lr = 0.1
     emsize = 5
-    stimuli_dim = len( dataset.grammar )
+    stimuli_dim = len( train_ds.grammar )
 
     model, opt = get_model( stimuli_dim, 0, emsize, lr )
 
     loss_func = nn.BCELoss()
+
+    for labels, seqs, offsets in dataloader:
+        with torch.no_grad():
+            print( labels, seqs, offsets )
+            print( model(seqs, offsets) )
+            print( loss_batch(model, loss_func, labels, seqs, offsets) )
+        break
+
+    epochs = 3
+    fit(epochs, model, loss_func, opt, dataloader)
 
     for labels, seqs, offsets in dataloader:
         with torch.no_grad():
