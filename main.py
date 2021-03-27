@@ -64,7 +64,7 @@ def collate_batch( batch ):
         seq_list.append( processed_seq )
         offsets.append( processed_seq.size(0) )
     label_list = torch.tensor( label_list, dtype=torch.float )
-    offsets = torch.tensor( torch.tensor( offsets[:-1] ).cumsum( dim=0 ), dtype=torch.int32 )
+    offsets = torch.tensor( offsets[:-1] ).cumsum( dim=0 ).type( torch.int32 )
     seq_list = torch.cat( seq_list )
     return label_list.to( device ), seq_list.to( device ), offsets.to( device )
 
@@ -81,21 +81,31 @@ def loss_batch(model, loss_func, labels, seqs, offsets, opt=None):
     return loss.item(), len(labels)
 
 
-def fit(epochs, model, loss_func, opt, train_dl):
+def fit(epochs, model, loss_func, opt, train_dl, valid_dl):
     for epoch in range(epochs):
         model.train()
         for labels, seqs, offsets in train_dl:
             loss_batch(model, loss_func, labels, seqs, offsets, opt)
-        print(epoch)
+
+        model.eval()
+        with torch.no_grad():
+            losses, nums = zip(
+                *[loss_batch(model, loss_func, labels, seqs, offsets) for labels, seqs, offsets in valid_dl]
+            )
+            val_loss = np.sum( np.multiply(losses, nums) ) / np.sum( nums )
+
+        print( epoch, val_loss )
+
 
 def get_model(stimuli_dim, hidden_dim, embedding_dim, lr):
     model = SequenceClassificationModel( stimuli_dim, hidden_dim, embedding_dim )
     return model, optim.SGD(model.parameters(), lr=lr)
 
+
 def get_data(train_ds, valid_ds, bs):
     return (
         DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=collate_batch ),
-        DataLoader( valid_ds, batch_size=bs * 2 ),
+        DataLoader( valid_ds, batch_size=bs * 2, collate_fn=collate_batch ),
     )
 
 
@@ -112,22 +122,8 @@ def main():
 
     loss_func = nn.BCELoss()
 
-    for labels, seqs, offsets in dataloader:
-        with torch.no_grad():
-            print( labels, seqs, offsets )
-            print( model(seqs, offsets) )
-            print( loss_batch(model, loss_func, labels, seqs, offsets) )
-        break
-
     epochs = 3
-    fit(epochs, model, loss_func, opt, dataloader)
-
-    for labels, seqs, offsets in dataloader:
-        with torch.no_grad():
-            print( labels, seqs, offsets )
-            print( model(seqs, offsets) )
-            print( loss_batch(model, loss_func, labels, seqs, offsets) )
-        break
+    fit( epochs, model, loss_func, opt, train_dl, valid_dl )
 
 
 if __name__ == '__main__':
