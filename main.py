@@ -6,6 +6,7 @@ import numpy as np
 from grammar import GrammarGen
 
 from torch import nn
+from torch import optim
 from torch.utils.data import DataLoader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -38,10 +39,11 @@ class SequenceClassificationModel(nn.Module):
         self.emb = nn.EmbeddingBag(stimuli_dim, emb_dim)
         #self.lstm = nn.LSTM( emb_dim, hidden_dim )
         self.lin = nn.Linear( emb_dim, 1 )
+        self.act = nn.ReLU()
 
     def forward(self, seqs, offsets):
         embedded = self.emb( seqs, offsets )
-        return self.lin( embedded )
+        return  self.act(self.lin( embedded ) )
 
 
 def collate_batch( batch ):
@@ -55,33 +57,56 @@ def collate_batch( batch ):
     label_list, seq_list, offsets = [], [], [0]
     for (_label, _seq) in batch:
         label_list.append( _label )
-        processed_seq = torch.tensor( _seq, dtype=torch.int16 )
+        processed_seq = torch.tensor( _seq, dtype=torch.int32 )
         seq_list.append( processed_seq )
         offsets.append( processed_seq.size(0) )
-    label_list = torch.tensor( label_list, dtype=torch.int16 )
-    offsets = torch.tensor( offsets[:-1] ).cumsum( dim=0 )
+    label_list = torch.tensor( label_list, dtype=torch.float )
+    offsets = torch.tensor( torch.tensor( offsets[:-1] ).cumsum( dim=0 ), dtype=torch.int32 )
     seq_list = torch.cat( seq_list )
     return label_list.to( device ), seq_list.to( device ), offsets.to( device )
 
-def loss_batch(model, loss_func, xb, yb, opt=None):
-    loss = loss_func(model(xb), yb)
+def loss_batch(model, loss_func, labels, seqs, offsets, opt=None):
+    labels = labels.unsqueeze(1)
+    loss = loss_func(model(seqs, offsets), labels)
 
     if opt is not None:
         loss.backward()
         opt.step()
         opt.zero_grad()
 
-    return loss.item(), len(xb)
+    return loss.item(), len(labels)
+
+def fit(epochs, model, loss_func, opt, train_dl):
+    for epoch in range(epochs):
+        model.train()
+        for labels, seqs, offsets in train_dl:
+            loss_batch(model, loss_func, labels, seqs, offsets, opt)
+        print(epoch)
+
+def get_model(stimuli_dim, hidden_dim, embedding_dim, lr):
+    model = SequenceClassificationModel( stimuli_dim, hidden_dim, embedding_dim )
+    return model, optim.SGD(model.parameters(), lr=lr)
 
 def main():
     dataset = SequenceDataset( 21 )
 
     dataloader = DataLoader( dataset, batch_size=3, shuffle=False, collate_fn=collate_batch )
 
-    # for (a,b,c) in dataloader:
-    #     print( a, b, c )
+    lr = 0.5
     emsize = 5
-    model = SequenceClassificationModel( len(dataset.grammar), 0, emsize )
+    stimuli_dim = len( dataset.grammar )
+
+    model, opt = get_model( stimuli_dim, 0, emsize, lr )
+
+    loss_func = nn.BCELoss()
+
+    for labels, seqs, offsets in dataloader:
+        with torch.no_grad():
+            print( labels, seqs, offsets )
+            print( model(seqs, offsets) )
+            print( loss_batch(model, loss_func, labels, seqs, offsets) )
+        break
+
 
 
 
