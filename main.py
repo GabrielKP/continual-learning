@@ -146,7 +146,7 @@ def main():
 
     lr = 0.1
     emsize = 5
-    stimuli_dim = len( ggen )
+    stimuli_dim = len( ggen ) + 1
 
     model, opt = get_model( stimuli_dim, 0, emsize, lr )
 
