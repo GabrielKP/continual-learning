@@ -108,25 +108,21 @@ def get_data(train_ds, valid_ds, bs):
     )
 
 
-def main():
-    bs = 3
-    ggen = GrammarGen()
-    train_ds, valid_ds = SequenceDataset( ggen.generate( 60 ) ), SequenceDataset( ggen.generate( 12 ) )
-    train_dl, valid_dl = get_data( train_ds, valid_ds, bs )
+def get_trainstimuliSequence():
+    return [
+        ( 1, ['A','C','F'], ),
+        ( 1, ['A','C','F','C','G'], ),
+        ( 1, ['A','C','G','F'], ),
+        ( 1, ['A','C','G','F','C','G'], ),
+        ( 1, ['A','D','C','F'], ),
+        ( 1, ['A','D','C','F','C'], ),
+        ( 1, ['A','D','C','F','C','G'], ),
+        ( 1, ['A','D','C','G','F','C','G'], ),
+    ]
 
-    lr = 0.1
-    emsize = 5
-    stimuli_dim = len( ggen )
 
-    model, opt = get_model( stimuli_dim, 0, emsize, lr )
-
-    loss_func = nn.BCELoss()
-
-    epochs = 3
-    fit( epochs, model, loss_func, opt, train_dl, valid_dl )
-
-    # Testsequence
-    teststimuliSequence = [
+def get_teststimuliSequence():
+    return [
         ( 1, ['A','C','F','C','G'], ),
         ( 1, ['A','D','C','F','G'], ),
         ( 1, ['A','C','G','F','C'], ),
@@ -140,6 +136,27 @@ def main():
         ( 0, ['A','G','D','C','F'], ),
         ( 0, ['A','G','F','D','C'], ),
     ]
+
+def main():
+    bs = 3
+    ggen = GrammarGen()
+    train_ds = SequenceDataset( ggen.stim2seqs( get_trainstimuliSequence() ) )
+    valid_ds = SequenceDataset( ggen.generate( 12 ) )
+    train_dl, valid_dl = get_data( train_ds, valid_ds, bs )
+
+    lr = 0.1
+    emsize = 5
+    stimuli_dim = len( ggen )
+
+    model, opt = get_model( stimuli_dim, 0, emsize, lr )
+
+    loss_func = nn.BCELoss()
+
+    epochs = 10
+    fit( epochs, model, loss_func, opt, train_dl, valid_dl )
+
+    # Testsequence
+    teststimuliSequence = get_teststimuliSequence()
     test_ds = SequenceDataset( ggen.stim2seqs( teststimuliSequence ) )
     test_dl = DataLoader( test_ds, batch_size=bs * 2, collate_fn=collate_batch )
     model.eval()
