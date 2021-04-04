@@ -34,7 +34,7 @@ class GrammarGen():
         """
         stimulusToOutput = dict()
         cores = dict() # keep track of same output letters
-        i = 0
+        i = 1
         for stimulus in self.grammar:
             if stimulus == 'START':
                 continue
