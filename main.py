@@ -39,9 +39,14 @@ class SequenceClassificationModel(nn.Module):
     def __init__(self, input_dim, hidden_dim, embedding_dim):
         super(SequenceClassificationModel, self).__init__()
         self.embed = nn.Embedding( input_dim, embedding_dim )
-        self.lstm = nn.LSTM( embedding_dim, hidden_dim )
+        self.lstm = nn.LSTM( embedding_dim, hidden_dim, batch_first=True )
         self.lin = nn.Linear( hidden_dim, 1 )
         self.act = nn.Sigmoid()
+
+        # for param in self.lstm.parameters():
+        #     nn.init.zeros_( param )
+
+        # nn.init.zeros_( self.lin.weight )
 
     def forward(self, seqs):
         lengths = [ len( seq ) for seq in seqs ]
@@ -164,7 +169,7 @@ def main():
     valid_ds = SequenceDataset( seqs )
     train_dl, valid_dl = get_data( train_ds, valid_ds, bs )
 
-    lr = 0.9
+    lr = 3
     hidden_dim = 5
     input_dim = len( ggen ) + 1
     embedding_dim = 4
