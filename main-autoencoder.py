@@ -14,6 +14,7 @@ from torch import optim
 
 device = torch.device( 'cuda' if torch.cuda.is_available() else 'cpu' )
 PAD_TOKEN = 0   # ugly but works for now
+CLIP = 0.5
 
 class Encoder(nn.Module):
 
@@ -148,7 +149,7 @@ def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=No
 
     if opt is not None:
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
         opt.step()
         opt.zero_grad()
 
@@ -246,15 +247,15 @@ def main():
     # Test
     print( '\nTrain' )
     visual_eval( model, train_dl )
-    print( evaluate( model, loss_func, train_dl) )
+    print( evaluate( model, loss_func, train_dl ) )
 
-    print( '\nTest - Valid' )
+    print( '\nTest - Correct' )
     visual_eval( model, test_dl )
-    print( evaluate( model, loss_func, test_dl) )
+    print( evaluate( model, loss_func, test_dl ) )
 
-    print( '\nTest - Invalid' )
-    visual_eval( model, test_dl )
-    print( evaluate( model, loss_func, test_dl) )
+    print( '\nTest - Incorrect' )
+    visual_eval( model, test_incorrect_dl )
+    print( evaluate( model, loss_func, test_incorrect_dl ) )
 
 
 if __name__ == '__main__':
