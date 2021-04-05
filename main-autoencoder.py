@@ -72,13 +72,17 @@ class Decoder(nn.Module):
 
     def forward(self, nInput, hidden, cell):
 
-        nInput = nInput.unsqueeze(0)
+        nInput = nInput.unsqueeze(-1)
 
         embedded = self.embed( nInput )
+        print( embedded )
+        print( embedded.size() )
+        print( hidden.size() )
+        print( cell.size() )
 
         output, (hidden, cell) = self.lstm( embedded, ( hidden, cell ) )
 
-        prediction = self.fc_out( output.squeeze(0) )
+        prediction = self.fc_out( output.squeeze(-1) )
 
         return  prediction, hidden, cell
 
@@ -129,17 +133,18 @@ def main():
     n_layers = 2
     input_dim = len( ggen ) + 2 # need 2 tokens to symbolize start and end
 
-    enc = Encoder( input_dim, hidden_dim, n_layers )
-    ys, xs = train_ds[0]
-    xs = [0] + xs + [1]
-    xs = torch.tensor( [xs] )
-    print( xs, ys )
-    hidden, cell = enc( xs )
+    for labels, seqs in train_dl:
+        enc = Encoder( input_dim, hidden_dim, n_layers )
+        print( seqs, labels )
+        hidden, cell = enc( seqs )
 
-    dec = Decoder( input_dim, hidden_dim, n_layers )
-    pred,_,_ = dec( xs[:,0], hidden, cell )
-    print( pred )
-    print( pred.argmax() )
+        dec = Decoder( input_dim, hidden_dim, n_layers )
+        startTokens = torch.tensor( [0]*len(labels) )
+        print( startTokens )
+        pred,_,_ = dec( startTokens, hidden, cell )
+        print( pred )
+        print( pred.argmax(-1) )
+        break
 
     return
     model, opt = get_model( input_dim, hidden_dim, lr )
