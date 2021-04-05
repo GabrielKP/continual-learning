@@ -180,6 +180,13 @@ def get_trainstimuliExtendedSequence():
         ( 0, ['A','D','C','G','F','G','C'], ),
     ]
 
+def get_validStimuliSequence():
+    return [
+        ( 1, ['A','C','F','C','G'], ),
+        ( 1, ['A','D','C','F','G'], ),
+        ( 1, ['A','C','G','F','C'], ),
+        ( 1, ['A','D','C','G','F'], ),
+    ]
 
 def get_teststimuliSequence():
     return [
