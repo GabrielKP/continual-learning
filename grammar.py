@@ -40,7 +40,7 @@ class GrammarGen():
         """
         stimulusToOutput = dict()
         cores = dict() # keep track of same output letters
-        i = 1
+        i = 2
         for stimulus in self.grammar:
             if stimulus == 'START':
                 continue
@@ -115,6 +115,7 @@ def collate_batch(batch):
     label_list, seq_list = [], []
     for (_label, _seq) in batch:
         label_list.append( _label )
+        _seq = [0] + _seq + [1]
         processed_seq = torch.tensor( _seq, dtype=torch.int32 )
         seq_list.append( processed_seq )
     label_list = torch.tensor( label_list, dtype=torch.float )
