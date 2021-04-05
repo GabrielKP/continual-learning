@@ -6,7 +6,7 @@ import torch
 import numpy as np
 from torch.optim import optimizer
 
-from grammar import GrammarGen, SequenceDataset, get_data, get_trainstimuliSequence, get_teststimuliSequence
+from grammar import GrammarGen, SequenceDataset, get_data, get_trainstimuliSequence, get_teststimuliSequence, get_validStimuliSequence
 
 from torch import nn
 from torch import optim
@@ -155,12 +155,17 @@ def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=No
 
 
 def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5):
+    best_val_loss = float('inf')
     for epoch in range(epochs):
         model.train()
         for labels, seqs in train_dl:
             loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio, opt)
 
         val_loss = evaluate(model, loss_func, valid_dl)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            torch.save( model.state_dict(), 'autoEncoder.pt' )
 
         print( epoch, val_loss )
 
@@ -189,48 +194,47 @@ def get_model(input_dim, hidden_dim, n_layers, lr):
     return model, optim.Adam( model.parameters(), lr=lr )
 
 
-def visual_eval(model, loss_func, test_dl):
+def visual_eval(model, test_dl):
     model.eval()
     with torch.no_grad():
         for labels, seqs in test_dl:
             output = model( labels, seqs, teacher_forcing_ratio=0 )
             predictions = output.argmax(-1)
             for i, seq in enumerate( seqs ):
-                print( f'Truth: {seq.tolist()} - Pred: {predictions[i].tolist()}' )
-        losses, nums = zip(
-            *[loss_batch( model, loss_func, labels, seqs, teacher_forcing_ratio=0 ) for labels, seqs in test_dl]
-        )
-        return np.sum( np.multiply( losses, nums ) ) / np.sum( nums )
+                print( f'Truth: {seq.tolist()[1:-1]} - Pred: {predictions[i].tolist()[1:-1]}' )
 
 
 def main():
-    bs = 3
+    bs = 2
     ggen = GrammarGen()
     seqs = ggen.stim2seqs( get_trainstimuliSequence() )
-    teststimuliSequence = get_teststimuliSequence()
+    teststimuliSequence = get_validStimuliSequence()
     test_ds = SequenceDataset( ggen.stim2seqs( teststimuliSequence ) )
     train_ds = SequenceDataset( seqs )
     train_dl, test_dl = get_data( train_ds, test_ds, bs )
 
-    lr = 0.5
-    hidden_dim = 5
+    lr = 0.01
+    hidden_dim = 4
     n_layers = 2
     input_dim = len( ggen ) + 3 # need 3 tokens to symbolize start, end, and padding
 
     model, opt = get_model( input_dim, hidden_dim, n_layers, lr )
 
-    # for labels, seqs in train_dl:
-    #     outputs = model( labels, seqs )
-    #     print( outputs )
-    #     print( outputs.argmax(-1) )
-    #     break
-
     loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN )
 
-    epochs = 32
+    epochs = 200
     fit( epochs, model, loss_func, opt, train_dl, test_dl )
 
-    visual_eval( model, loss_func, test_dl )
+    # Load best model
+    model.load_state_dict( torch.load( 'autoEncoder.pt' ) )
+
+    print( '\nTrain' )
+    visual_eval( model, train_dl )
+    print( evaluate( model, loss_func, train_dl) )
+
+    print( '\ntest' )
+    visual_eval( model, test_dl )
+    print( evaluate( model, loss_func, test_dl) )
 
 
 if __name__ == '__main__':
