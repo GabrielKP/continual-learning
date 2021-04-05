@@ -180,6 +180,7 @@ def get_trainstimuliExtendedSequence():
         ( 0, ['A','D','C','G','F','G','C'], ),
     ]
 
+
 def get_validStimuliSequence():
     return [
         ( 1, ['A','C','F','C','G'], ),
@@ -187,6 +188,20 @@ def get_validStimuliSequence():
         ( 1, ['A','C','G','F','C'], ),
         ( 1, ['A','D','C','G','F'], ),
     ]
+
+
+def get_invalidStimuliSequence():
+    return [
+        ( 0, ['A','D','C','F','G'], ),
+        ( 0, ['A','D','F','C','G'], ),
+        ( 0, ['A','D','G','C','F'], ),
+        ( 0, ['A','D','G','F','C'], ),
+        ( 0, ['A','G','C','F','G'], ),
+        ( 0, ['A','G','F','G','C'], ),
+        ( 0, ['A','G','D','C','F'], ),
+        ( 0, ['A','G','F','D','C'], ),
+    ]
+
 
 def get_teststimuliSequence():
     return [
