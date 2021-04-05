@@ -38,8 +38,9 @@ class SequenceClassificationModel(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, embedding_dim):
         super(SequenceClassificationModel, self).__init__()
-        self.embed = nn.Embedding( input_dim, embedding_dim )
-        self.lstm = nn.LSTM( embedding_dim, hidden_dim, batch_first=True )
+        self.embed = nn.Embedding( input_dim, input_dim )
+        #self.embed.weight.data = torch.eye( input_dim )
+        self.lstm = nn.LSTM( input_dim, hidden_dim, batch_first=True )
         self.lin = nn.Linear( hidden_dim, 1 )
         self.act = nn.Sigmoid()
 
@@ -166,10 +167,16 @@ def main():
     ggen = GrammarGen()
     seqs = ggen.stim2seqs( get_trainstimuliExtendedSequence() )
     train_ds = SequenceDataset( seqs )
-    valid_ds = SequenceDataset( seqs )
-    train_dl, valid_dl = get_data( train_ds, valid_ds, bs )
 
-    lr = 3
+    # Testsequence
+    teststimuliSequence = get_teststimuliSequence()
+    test_ds = SequenceDataset( ggen.stim2seqs( teststimuliSequence ) )
+    test_dl = DataLoader( test_ds, batch_size=bs * 2, collate_fn=collate_batch )
+
+    # valid_ds = SequenceDataset( seqs )
+    train_dl, valid_dl = get_data( train_ds, test_ds, bs )
+
+    lr = 0.5
     hidden_dim = 5
     input_dim = len( ggen ) + 1
     embedding_dim = 4
@@ -178,13 +185,9 @@ def main():
 
     loss_func = nn.BCELoss()
 
-    epochs = 10
+    epochs = 100
     fit( epochs, model, loss_func, opt, train_dl, valid_dl )
 
-    # Testsequence
-    teststimuliSequence = get_teststimuliSequence()
-    test_ds = SequenceDataset( ggen.stim2seqs( teststimuliSequence ) )
-    test_dl = DataLoader( test_ds, batch_size=bs * 2, collate_fn=collate_batch )
     model.eval()
     with torch.no_grad():
         losses, nums = zip(
