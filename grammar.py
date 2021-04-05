@@ -1,6 +1,12 @@
-# Grammar
+# Grammar & Datasets
 
 import random
+import torch
+
+from torch.utils.data.dataset import Dataset
+from torch.utils.data import DataLoader
+
+device = torch.device( 'cuda' if torch.cuda.is_available() else 'cpu' )
 
 class GrammarGen():
     """
@@ -76,3 +82,96 @@ class GrammarGen():
 
     def generateUngrammatical(self, n):
         pass
+
+
+class SequenceDataset( Dataset ):
+    """
+    Dataset for Sequences
+    """
+
+    def __init__( self, seqs ):
+        """
+        https://pytorch.org/tutorials/beginner/data_loading_tutorial.html
+        Args:
+            size (int): amount of sequences generated
+            grammar (dict): dictionary specifying the grammar
+        """
+        self.seqs = seqs
+
+    def __len__(self):
+        return len( self.seqs )
+
+    def __getitem__(self, idx):
+        return self.seqs[idx]
+
+
+def collate_batch(batch):
+    """
+    https://pytorch.org/tutorials/beginner/text_sentiment_ngrams_tutorial.html
+    Basically:
+    1. create tensor for all labels in a batch
+    2. smash all sequences together into a list
+    """
+    label_list, seq_list = [], []
+    for (_label, _seq) in batch:
+        label_list.append( _label )
+        processed_seq = torch.tensor( _seq, dtype=torch.int32 )
+        seq_list.append( processed_seq )
+    label_list = torch.tensor( label_list, dtype=torch.float )
+    return label_list.to( device ), seq_list
+
+
+def get_data(train_ds, valid_ds, bs):
+    return (
+        DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=collate_batch ),
+        DataLoader( valid_ds, batch_size=bs * 2, collate_fn=collate_batch ),
+    )
+
+
+def get_trainstimuliSequence():
+    return [
+        ( 1, ['A','C','F'], ),
+        ( 1, ['A','C','F','C','G'], ),
+        ( 1, ['A','C','G','F'], ),
+        ( 1, ['A','C','G','F','C','G'], ),
+        ( 1, ['A','D','C','F'], ),
+        ( 1, ['A','D','C','F','C'], ),
+        ( 1, ['A','D','C','F','C','G'], ),
+        ( 1, ['A','D','C','G','F','C','G'], ),
+    ]
+
+
+def get_trainstimuliExtendedSequence():
+    return [
+        ( 1, ['A','C','F'], ),
+        ( 1, ['A','C','F','C','G'], ),
+        ( 1, ['A','C','G','F'], ),
+        ( 1, ['A','C','G','F','C','G'], ),
+        ( 1, ['A','D','C','F'], ),
+        ( 1, ['A','D','C','F','C'], ),
+        ( 1, ['A','D','C','F','C','G'], ),
+        ( 1, ['A','D','C','G','F','C','G'], ),
+        ( 0, ['A','C','F','G'] ),
+        ( 0, ['A','D','G','F','C'] ),
+        ( 0, ['A','C','C','G'] ),
+        ( 0, ['A','G','F','C','G'] ),
+        ( 0, ['A','D','C','F','G'] ),
+        ( 0, ['A','D','C','G','F','G','C'], ),
+    ]
+
+
+def get_teststimuliSequence():
+    return [
+        ( 1, ['A','C','F','C','G'], ),
+        ( 1, ['A','D','C','F','G'], ),
+        ( 1, ['A','C','G','F','C'], ),
+        ( 1, ['A','D','C','G','F'], ),
+        ( 0, ['A','D','C','F','G'], ),
+        ( 0, ['A','D','F','C','G'], ),
+        ( 0, ['A','D','G','C','F'], ),
+        ( 0, ['A','D','G','F','C'], ),
+        ( 0, ['A','G','C','F','G'], ),
+        ( 0, ['A','G','F','G','C'], ),
+        ( 0, ['A','G','D','C','F'], ),
+        ( 0, ['A','G','F','D','C'], ),
+    ]
