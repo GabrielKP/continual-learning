@@ -5,8 +5,9 @@ import sys
 import torch
 import numpy as np
 from torch.optim import optimizer
+from torch.utils.data.dataloader import DataLoader
 
-from grammar import GrammarGen, SequenceDataset, get_data, get_trainstimuliSequence, get_teststimuliSequence, get_validStimuliSequence
+from grammar import GrammarGen, SequenceDataset, collate_batch, get_data, get_invalidStimuliSequence, get_trainstimuliSequence, get_teststimuliSequence, get_validStimuliSequence
 
 from torch import nn
 from torch import optim
@@ -206,33 +207,52 @@ def visual_eval(model, test_dl):
 
 def main():
     bs = 2
+    # Grammar
     ggen = GrammarGen()
-    seqs = ggen.stim2seqs( get_trainstimuliSequence() )
-    teststimuliSequence = get_validStimuliSequence()
-    test_ds = SequenceDataset( ggen.stim2seqs( teststimuliSequence ) )
-    train_ds = SequenceDataset( seqs )
-    train_dl, test_dl = get_data( train_ds, test_ds, bs )
+    # Train
+    train_seqs = ggen.stim2seqs( get_trainstimuliSequence() )
+    train_ds = SequenceDataset( train_seqs )
+    train_dl = DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=collate_batch )
 
+    # Test - Correct
+    test_seqs = ggen.stim2seqs( get_validStimuliSequence() )
+    test_ds = SequenceDataset( test_seqs )
+    test_dl = DataLoader( test_ds, batch_size=bs * 2, collate_fn=collate_batch )
+
+    # Test - Incorrect
+    test_incorrect_seqs = ggen.stim2seqs( get_invalidStimuliSequence() )
+    test_incorrect_ds = SequenceDataset( test_incorrect_seqs )
+    test_incorrect_dl = DataLoader( test_incorrect_ds, batch_size=bs * 2, collate_fn=collate_batch )
+
+    # Misc parameters
+    epochs = 200
     lr = 0.01
     hidden_dim = 4
     n_layers = 2
     input_dim = len( ggen ) + 3 # need 3 tokens to symbolize start, end, and padding
 
+    # Get Model
     model, opt = get_model( input_dim, hidden_dim, n_layers, lr )
 
+    # Loss Function
     loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN )
 
-    epochs = 200
+    # Train
     fit( epochs, model, loss_func, opt, train_dl, test_dl )
 
     # Load best model
     model.load_state_dict( torch.load( 'autoEncoder.pt' ) )
 
+    # Test
     print( '\nTrain' )
     visual_eval( model, train_dl )
     print( evaluate( model, loss_func, train_dl) )
 
-    print( '\ntest' )
+    print( '\nTest - Valid' )
+    visual_eval( model, test_dl )
+    print( evaluate( model, loss_func, test_dl) )
+
+    print( '\nTest - Invalid' )
     visual_eval( model, test_dl )
     print( evaluate( model, loss_func, test_dl) )
 
