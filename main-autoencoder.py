@@ -1,9 +1,9 @@
 # Main file
 
-from numpy.core.fromnumeric import squeeze
+import random
 import torch
-
 import numpy as np
+
 from grammar import GrammarGen, SequenceDataset, get_data, get_trainstimuliSequence, get_teststimuliSequence
 
 from torch import nn
@@ -75,16 +75,61 @@ class Decoder(nn.Module):
         nInput = nInput.unsqueeze(-1)
 
         embedded = self.embed( nInput )
-        print( embedded )
-        print( embedded.size() )
-        print( hidden.size() )
-        print( cell.size() )
 
         output, (hidden, cell) = self.lstm( embedded, ( hidden, cell ) )
 
-        prediction = self.fc_out( output.squeeze(-1) )
+        print( output.size() )
+
+        prediction = self.fc_out( output.squeeze(1) )
+
+        print( output.size() )
 
         return  prediction, hidden, cell
+
+
+class AutoEncoder(nn.Module):
+    def __init__(self, encoder, decoder):
+        super(AutoEncoder, self).__init__()
+
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def forward(self, labels, seqs, teacher_forcing_ratio = 0.5 ):
+
+        trgts = nn.utils.rnn.pad_sequence( seqs, batch_first=True )
+
+        batch_size = len( seqs )
+        trgt_vocab_size = self.decoder.output_dim
+        max_len = max( [len( seq ) for seq in seqs] )
+
+        # Vector to store outputs
+        outputs = torch.zeros( batch_size, max_len, trgt_vocab_size )
+
+        # Encode
+        hidden, cell = self.encoder( seqs )
+
+        # First input to decoder is start sequence token
+        nInput = torch.tensor( [ seqs[0][0] ] * batch_size )
+
+        # Let's go
+        for t in range( 1, max_len ):
+
+            # Decode stimulus
+            output, hidden, cell = self.decoder( nInput, hidden, cell )
+
+            print( outputs.size() )
+            print( output.size() )
+            # Save output
+            outputs[:,t] = output
+
+            # Teacher forcing
+            if random.random() < teacher_forcing_ratio:
+                nInput = trgts[:,t]
+            else:
+                nInput = output.argmax(-1)
+
+        return outputs
+
 
 def loss_batch(model, loss_func, labels, seqs, opt=None):
     labels = labels.unsqueeze(1)
@@ -131,19 +176,17 @@ def main():
     lr = 3
     hidden_dim = 5
     n_layers = 2
-    input_dim = len( ggen ) + 2 # need 2 tokens to symbolize start and end
+    input_dim = len( ggen ) + 3 # need 3 tokens to symbolize start, end, and padding
+
+    encoder = Encoder( input_dim, hidden_dim, n_layers )
+    decoder = Decoder( input_dim, hidden_dim, n_layers )
+
+    autoEncoder = AutoEncoder( encoder, decoder )
 
     for labels, seqs in train_dl:
-        enc = Encoder( input_dim, hidden_dim, n_layers )
-        print( seqs, labels )
-        hidden, cell = enc( seqs )
-
-        dec = Decoder( input_dim, hidden_dim, n_layers )
-        startTokens = torch.tensor( [0]*len(labels) )
-        print( startTokens )
-        pred,_,_ = dec( startTokens, hidden, cell )
-        print( pred )
-        print( pred.argmax(-1) )
+        outputs = autoEncoder( labels, seqs )
+        print( outputs )
+        print( outputs.argmax(-1) )
         break
 
     return
