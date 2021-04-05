@@ -1,5 +1,6 @@
 # Main file
 
+from numpy.core.fromnumeric import squeeze
 import torch
 
 import numpy as np
@@ -13,19 +14,20 @@ device = torch.device( 'cuda' if torch.cuda.is_available() else 'cpu' )
 
 class Encoder(nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, embedding=True ):
+    def __init__(self, input_dim, hidden_dim, n_layers, embedding=True ):
         super(Encoder, self).__init__()
 
         # Vars
         self.hidden_dim = hidden_dim
         self.input_dim = input_dim
         self.embedding_dim = input_dim
+        self.n_layers = n_layers
 
         # Layers
         self.embed = nn.Embedding( self.input_dim, self.embedding_dim )
         if not embedding:
             self.embed.weight.data = torch.eye( input_dim )
-        self.lstm = nn.LSTM( self.embedding_dim, self.hidden_dim, batch_first=True )
+        self.lstm = nn.LSTM( self.embedding_dim, self.hidden_dim, n_layers, batch_first=True )
 
         # Init Params
         # for param in self.lstm.parameters():
@@ -41,6 +43,44 @@ class Encoder(nn.Module):
         _, (hidden, cell) = self.lstm( padded_embeds_packed )
         return  hidden, cell
 
+
+class Decoder(nn.Module):
+
+    def __init__(self, output_dim, hidden_dim, n_layers, embedding=True ):
+        super(Decoder, self).__init__()
+
+        # Vars
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
+        self.embedding_dim = output_dim
+        self.n_layers = n_layers
+
+        # Layers
+        self.embed = nn.Embedding( self.output_dim, self.embedding_dim )
+        if not embedding:
+            self.embed.weight.data = torch.eye( self.embedding_dim )
+
+        self.lstm = nn.LSTM( self.embedding_dim, self.hidden_dim, self.n_layers, batch_first=True )
+
+        self.fc_out = nn.Linear( hidden_dim, output_dim )
+
+        # Init Params
+        # for param in self.lstm.parameters():
+        #     nn.init.zeros_( param )
+
+        # nn.init.zeros_( self.lin.weight )
+
+    def forward(self, nInput, hidden, cell):
+
+        nInput = nInput.unsqueeze(0)
+
+        embedded = self.embed( nInput )
+
+        output, (hidden, cell) = self.lstm( embedded, ( hidden, cell ) )
+
+        prediction = self.fc_out( output.squeeze(0) )
+
+        return  prediction, hidden, cell
 
 def loss_batch(model, loss_func, labels, seqs, opt=None):
     labels = labels.unsqueeze(1)
@@ -86,14 +126,29 @@ def main():
 
     lr = 3
     hidden_dim = 5
-    input_dim = len( ggen ) + 1
+    n_layers = 2
+    input_dim = len( ggen ) + 2 # need 2 tokens to symbolize start and end
 
+    enc = Encoder( input_dim, hidden_dim, n_layers )
+    ys, xs = train_ds[0]
+    xs = [0] + xs + [1]
+    xs = torch.tensor( [xs] )
+    print( xs, ys )
+    hidden, cell = enc( xs )
+
+    dec = Decoder( input_dim, hidden_dim, n_layers )
+    pred,_,_ = dec( xs[:,0], hidden, cell )
+    print( pred )
+    print( pred.argmax() )
+
+    return
     model, opt = get_model( input_dim, hidden_dim, lr )
 
     loss_func = nn.BCELoss()
 
     epochs = 30
     fit( epochs, model, loss_func, opt, train_dl, test_dl )
+
 
 if __name__ == '__main__':
     main()
