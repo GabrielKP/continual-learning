@@ -1,8 +1,10 @@
 # Main file
 
 import random
+import sys
 import torch
 import numpy as np
+from torch.optim import optimizer
 
 from grammar import GrammarGen, SequenceDataset, get_data, get_trainstimuliSequence, get_teststimuliSequence
 
@@ -10,7 +12,7 @@ from torch import nn
 from torch import optim
 
 device = torch.device( 'cuda' if torch.cuda.is_available() else 'cpu' )
-
+PAD_TOKEN = 0   # ugly but works for now
 
 class Encoder(nn.Module):
 
@@ -78,11 +80,11 @@ class Decoder(nn.Module):
 
         output, (hidden, cell) = self.lstm( embedded, ( hidden, cell ) )
 
-        print( output.size() )
+        # print( output.size() )
 
         prediction = self.fc_out( output.squeeze(1) )
 
-        print( output.size() )
+        # print( output.size() )
 
         return  prediction, hidden, cell
 
@@ -96,7 +98,7 @@ class AutoEncoder(nn.Module):
 
     def forward(self, labels, seqs, teacher_forcing_ratio = 0.5 ):
 
-        trgts = nn.utils.rnn.pad_sequence( seqs, batch_first=True )
+        trgts = nn.utils.rnn.pad_sequence( seqs, batch_first=True, padding_value=PAD_TOKEN )
 
         batch_size = len( seqs )
         trgt_vocab_size = self.decoder.output_dim
@@ -109,7 +111,7 @@ class AutoEncoder(nn.Module):
         hidden, cell = self.encoder( seqs )
 
         # First input to decoder is start sequence token
-        nInput = torch.tensor( [ seqs[0][0] ] * batch_size )
+        nInput = torch.tensor( [ 1 ] * batch_size )
 
         # Let's go
         for t in range( 1, max_len ):
@@ -117,8 +119,6 @@ class AutoEncoder(nn.Module):
             # Decode stimulus
             output, hidden, cell = self.decoder( nInput, hidden, cell )
 
-            print( outputs.size() )
-            print( output.size() )
             # Save output
             outputs[:,t] = output
 
@@ -131,37 +131,76 @@ class AutoEncoder(nn.Module):
         return outputs
 
 
-def loss_batch(model, loss_func, labels, seqs, opt=None):
-    labels = labels.unsqueeze(1)
-    loss = loss_func( model( seqs ), labels )
+def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=None):
+    # loss function gets padded sequences -> autoencoder
+    labels = nn.utils.rnn.pad_sequence( seqs, batch_first=True, padding_value=PAD_TOKEN ).type( torch.long )
+
+    # Get model output
+    output = model( labels, seqs, teacher_forcing_ratio )
+
+    # Cut of start sequence
+    output = output[:,1:].reshape(-1, model.decoder.output_dim )
+    labels = labels[:,1:].reshape(-1)
+
+    # Compute loss
+    loss = loss_func( output, labels )
 
     if opt is not None:
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
         opt.step()
         opt.zero_grad()
 
     return loss.item(), len( labels )
 
 
-def fit(epochs, model, loss_func, opt, train_dl, valid_dl):
+def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5):
     for epoch in range(epochs):
         model.train()
         for labels, seqs in train_dl:
-            loss_batch(model, loss_func, labels, seqs, opt)
+            loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio, opt)
 
-        model.eval()
-        with torch.no_grad():
-            losses, nums = zip(
-                *[loss_batch( model, loss_func, labels, seqs ) for labels, seqs in valid_dl]
-            )
-            val_loss = np.sum( np.multiply( losses, nums ) ) / np.sum( nums )
+        val_loss = evaluate(model, loss_func, valid_dl)
 
         print( epoch, val_loss )
 
 
-def get_model(input_dim, hidden_dim, lr):
-    model = Encoder( input_dim, hidden_dim )
-    return model, optim.SGD( model.parameters(), lr=lr )
+def evaluate(model, loss_func, test_dl):
+    model.eval()
+    with torch.no_grad():
+        losses, nums = zip(
+            *[loss_batch( model, loss_func, labels, seqs, teacher_forcing_ratio=0 ) for labels, seqs in test_dl]
+        )
+        return np.sum( np.multiply( losses, nums ) ) / np.sum( nums )
+
+
+def init_weights(m):
+    for _, param in m.named_parameters():
+        nn.init.uniform_(param.data, -0.08, 0.08)
+
+
+def get_model(input_dim, hidden_dim, n_layers, lr):
+
+    encoder = Encoder( input_dim, hidden_dim, n_layers )
+    decoder = Decoder( input_dim, hidden_dim, n_layers )
+
+    model = AutoEncoder( encoder, decoder )
+    print( model.apply( init_weights ) )
+    return model, optim.Adam( model.parameters(), lr=lr )
+
+
+def visual_eval(model, loss_func, test_dl):
+    model.eval()
+    with torch.no_grad():
+        for labels, seqs in test_dl:
+            output = model( labels, seqs, teacher_forcing_ratio=0 )
+            predictions = output.argmax(-1)
+            for i, seq in enumerate( seqs ):
+                print( f'Truth: {seq.tolist()} - Pred: {predictions[i].tolist()}' )
+        losses, nums = zip(
+            *[loss_batch( model, loss_func, labels, seqs, teacher_forcing_ratio=0 ) for labels, seqs in test_dl]
+        )
+        return np.sum( np.multiply( losses, nums ) ) / np.sum( nums )
 
 
 def main():
@@ -173,29 +212,25 @@ def main():
     train_ds = SequenceDataset( seqs )
     train_dl, test_dl = get_data( train_ds, test_ds, bs )
 
-    lr = 3
+    lr = 0.5
     hidden_dim = 5
     n_layers = 2
     input_dim = len( ggen ) + 3 # need 3 tokens to symbolize start, end, and padding
 
-    encoder = Encoder( input_dim, hidden_dim, n_layers )
-    decoder = Decoder( input_dim, hidden_dim, n_layers )
+    model, opt = get_model( input_dim, hidden_dim, n_layers, lr )
 
-    autoEncoder = AutoEncoder( encoder, decoder )
+    # for labels, seqs in train_dl:
+    #     outputs = model( labels, seqs )
+    #     print( outputs )
+    #     print( outputs.argmax(-1) )
+    #     break
 
-    for labels, seqs in train_dl:
-        outputs = autoEncoder( labels, seqs )
-        print( outputs )
-        print( outputs.argmax(-1) )
-        break
+    loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN )
 
-    return
-    model, opt = get_model( input_dim, hidden_dim, lr )
-
-    loss_func = nn.BCELoss()
-
-    epochs = 30
+    epochs = 32
     fit( epochs, model, loss_func, opt, train_dl, test_dl )
+
+    visual_eval( model, loss_func, test_dl )
 
 
 if __name__ == '__main__':
