@@ -167,7 +167,7 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            torch.save( model.state_dict(), 'autoEncoder.pt' )
+            torch.save( model.state_dict(), 'autoEncoder-3.pt' )
 
         print( epoch, val_loss )
 
@@ -226,23 +226,27 @@ def main():
     test_incorrect_dl = DataLoader( test_incorrect_ds, batch_size=bs * 2, collate_fn=collate_batch )
 
     # Misc parameters
-    epochs = 200
-    lr = 0.01
+    epochs = 400
+    lr = 0.001
+    teacher_forcing_ratio = 1
     hidden_dim = 4
-    n_layers = 2
+    n_layers = 3
+    start_from_scratch = False
     input_dim = len( ggen ) + 3 # need 3 tokens to symbolize start, end, and padding
 
     # Get Model
     model, opt = get_model( input_dim, hidden_dim, n_layers, lr )
+    if  not start_from_scratch:
+        model.load_state_dict( torch.load( 'autoEncoder-3.pt' ) )
 
     # Loss Function
     loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN )
 
     # Train
-    fit( epochs, model, loss_func, opt, train_dl, test_dl )
+    fit( epochs, model, loss_func, opt, train_dl, test_dl, teacher_forcing_ratio )
 
     # Load best model
-    model.load_state_dict( torch.load( 'autoEncoder.pt' ) )
+    model.load_state_dict( torch.load( 'autoEncoder-3.pt' ) )
 
     # Test
     print( '\nTrain' )
