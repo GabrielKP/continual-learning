@@ -15,6 +15,7 @@ from torch import optim
 
 device = torch.device( 'cuda' if torch.cuda.is_available() else 'cpu' )
 PAD_TOKEN = 0   # ugly but works for now
+END_TOKEN = 2
 CLIP = 0.5
 
 class Encoder(nn.Module):
@@ -224,6 +225,15 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
         print(f'\tTrain Loss: {train_loss:.5f} |  Val. Loss: {valid_loss:.5f}')
 
 
+def cutStartAndEndToken( seq ):
+    ret = []
+    for stim in seq[1:]:
+        if stim == END_TOKEN:
+            break
+        ret.append( stim )
+    return ret
+
+
 def visual_eval(model, test_dl):
     model.eval()
     with torch.no_grad():
@@ -233,6 +243,7 @@ def visual_eval(model, test_dl):
             for i, seq in enumerate( seqs ):
                 trgtlist = seq.tolist()[1:-1]
                 predlist = [ x for x in predictions[i].tolist()[1:-1] if x != 2 ]
+                predlist = cutStartAndEndToken( predictions[i].tolist() )
                 # needs to be fixed to only cut of suffixes
                 print( f'Same: {trgtlist == predlist} Truth: {trgtlist} - Pred: {predlist}' )
 
