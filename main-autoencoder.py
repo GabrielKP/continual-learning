@@ -1,5 +1,6 @@
 # Main file
 
+import time
 import random
 import sys
 import torch
@@ -7,7 +8,7 @@ import numpy as np
 from torch.optim import optimizer
 from torch.utils.data.dataloader import DataLoader
 
-from grammar import GrammarGen, SequenceDataset, collate_batch, get_data, get_invalidStimuliSequence, get_trainstimuliSequence, get_teststimuliSequence, get_validStimuliSequence
+from grammar import GrammarGen, SequenceDataset, collate_batch, get_correctStimuliSequence, get_incorrectStimuliSequence, get_trainstimuliSequence, get_teststimuliSequence
 
 from torch import nn
 from torch import optim
@@ -68,11 +69,6 @@ class Decoder(nn.Module):
 
         self.fc_out = nn.Linear( hidden_dim, output_dim )
 
-        # Init Params
-        # for param in self.lstm.parameters():
-        #     nn.init.zeros_( param )
-
-        # nn.init.zeros_( self.lin.weight )
 
     def forward(self, nInput, hidden, cell):
 
@@ -82,11 +78,7 @@ class Decoder(nn.Module):
 
         output, (hidden, cell) = self.lstm( embedded, ( hidden, cell ) )
 
-        # print( output.size() )
-
         prediction = self.fc_out( output.squeeze(1) )
-
-        # print( output.size() )
 
         return  prediction, hidden, cell
 
@@ -133,6 +125,26 @@ class AutoEncoder(nn.Module):
         return outputs
 
 
+def init_weights(m):
+    for _, param in m.named_parameters():
+        nn.init.uniform_(param.data, -0.08, 0.08)
+
+
+def count_parameters(model):
+    return sum( p.numel() for p in model.parameters() if p.requires_grad )
+
+
+def get_model(input_dim, hidden_dim, n_layers, lr, use_embedding=True):
+
+    encoder = Encoder( input_dim, hidden_dim, n_layers, use_embedding )
+    decoder = Decoder( input_dim, hidden_dim, n_layers, use_embedding )
+
+    model = AutoEncoder( encoder, decoder )
+    print( model.apply( init_weights ) )
+    print( f'The model has {count_parameters(model):,} trainable parameters' )
+    return model, optim.Adam( model.parameters(), lr=lr )
+
+
 def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=None):
     # loss function gets padded sequences -> autoencoder
     labels = nn.utils.rnn.pad_sequence( seqs, batch_first=True, padding_value=PAD_TOKEN ).type( torch.long )
@@ -156,20 +168,20 @@ def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=No
     return loss.item(), len( labels )
 
 
-def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5):
-    best_val_loss = float('inf')
-    for epoch in range(epochs):
-        model.train()
-        for labels, seqs in train_dl:
-            loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio, opt)
+def train(model, train_dl, loss_func, opt, teacher_forcing_ratio):
+    """ Trains 1 epoch of the model, returns loss for train set"""
 
-        val_loss = evaluate(model, loss_func, valid_dl)
+    model.train()
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            torch.save( model.state_dict(), 'autoEncoder-3.pt' )
+    epoch_loss = 0
+    epoch_num_seqs = 0
 
-        print( epoch, val_loss )
+    for labels, seqs in train_dl:
+        batch_loss, batch_num_seqs = loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio, opt)
+        epoch_loss += batch_loss * batch_num_seqs
+        epoch_num_seqs += batch_num_seqs
+
+    return epoch_loss / epoch_num_seqs
 
 
 def evaluate(model, loss_func, test_dl):
@@ -181,19 +193,35 @@ def evaluate(model, loss_func, test_dl):
         return np.sum( np.multiply( losses, nums ) ) / np.sum( nums )
 
 
-def init_weights(m):
-    for _, param in m.named_parameters():
-        nn.init.uniform_(param.data, -0.08, 0.08)
+def epoch_time(start_time, end_time):
+    elapsed_time = end_time - start_time
+    elapsed_mins = int(elapsed_time / 60)
+    elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
+    return elapsed_mins, elapsed_secs
 
 
-def get_model(input_dim, hidden_dim, n_layers, lr):
+def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5):
+    """ Fits model on train data, printing val and train loss"""
 
-    encoder = Encoder( input_dim, hidden_dim, n_layers )
-    decoder = Decoder( input_dim, hidden_dim, n_layers )
+    best_val_loss = float('inf')
 
-    model = AutoEncoder( encoder, decoder )
-    print( model.apply( init_weights ) )
-    return model, optim.Adam( model.parameters(), lr=lr )
+    for epoch in range(epochs):
+
+        start_time = time.time()
+
+        train_loss = train(model, train_dl, loss_func, opt, teacher_forcing_ratio)
+        valid_loss = evaluate(model, loss_func, valid_dl)
+
+        end_time = time.time()
+
+        if valid_loss < best_val_loss:
+            best_val_loss = valid_loss
+            torch.save( model.state_dict(), 'autoEncoder-3.pt' )
+
+        epoch_mins, epoch_secs = epoch_time(start_time, end_time)
+
+        print(f'Epoch: {epoch+1:03} | Time: {epoch_mins}m {epoch_secs}s')
+        print(f'\tTrain Loss: {train_loss:.5f} |  Val. Loss: {valid_loss:.5f}')
 
 
 def visual_eval(model, test_dl):
@@ -203,7 +231,10 @@ def visual_eval(model, test_dl):
             output = model( labels, seqs, teacher_forcing_ratio=0 )
             predictions = output.argmax(-1)
             for i, seq in enumerate( seqs ):
-                print( f'Truth: {seq.tolist()[1:-1]} - Pred: {predictions[i].tolist()[1:-1]}' )
+                trgtlist = seq.tolist()[1:-1]
+                predlist = [ x for x in predictions[i].tolist()[1:-1] if x != 2 ]
+                # needs to be fixed to only cut of suffixes
+                print( f'Same: {trgtlist == predlist} Truth: {trgtlist} - Pred: {predlist}' )
 
 
 def main():
@@ -215,27 +246,34 @@ def main():
     train_ds = SequenceDataset( train_seqs )
     train_dl = DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=collate_batch )
 
+    # Validation
+    valid_seqs = ggen.generate( 20 )
+    valid_ds = SequenceDataset( valid_seqs )
+    valid_dl = DataLoader( valid_ds, batch_size=bs * 2, collate_fn=collate_batch )
+
     # Test - Correct
-    test_seqs = ggen.stim2seqs( get_validStimuliSequence() )
+    test_seqs = ggen.stim2seqs( get_correctStimuliSequence() )
     test_ds = SequenceDataset( test_seqs )
     test_dl = DataLoader( test_ds, batch_size=bs * 2, collate_fn=collate_batch )
 
     # Test - Incorrect
-    test_incorrect_seqs = ggen.stim2seqs( get_invalidStimuliSequence() )
+    test_incorrect_seqs = ggen.stim2seqs( get_incorrectStimuliSequence() )
     test_incorrect_ds = SequenceDataset( test_incorrect_seqs )
     test_incorrect_dl = DataLoader( test_incorrect_ds, batch_size=bs * 2, collate_fn=collate_batch )
 
     # Misc parameters
-    epochs = 400
+    # dropout?
+    epochs = 100
     lr = 0.001
-    teacher_forcing_ratio = 1
+    teacher_forcing_ratio = 0.5
+    use_embedding = True
     hidden_dim = 4
-    n_layers = 3
+    n_layers = 7
     start_from_scratch = False
     input_dim = len( ggen ) + 3 # need 3 tokens to symbolize start, end, and padding
 
     # Get Model
-    model, opt = get_model( input_dim, hidden_dim, n_layers, lr )
+    model, opt = get_model( input_dim, hidden_dim, n_layers, lr, use_embedding )
     if  not start_from_scratch:
         model.load_state_dict( torch.load( 'autoEncoder-3.pt' ) )
 
@@ -243,7 +281,7 @@ def main():
     loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN )
 
     # Train
-    fit( epochs, model, loss_func, opt, train_dl, test_dl, teacher_forcing_ratio )
+    fit( epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio )
 
     # Load best model
     model.load_state_dict( torch.load( 'autoEncoder-3.pt' ) )
