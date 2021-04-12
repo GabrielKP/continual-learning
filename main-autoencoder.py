@@ -153,9 +153,11 @@ def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=No
     # Get model output
     output = model( labels, seqs, teacher_forcing_ratio )
 
-    # Cut of start sequence
-    output = output[:,1:].reshape(-1, model.decoder.output_dim )
-    labels = labels[:,1:].reshape(-1)
+    # Cut of start sequence & reshaping
+    # output = output[:,1:].reshape(-1, model.decoder.output_dim )
+    # labels = labels[:,1:].reshape(-1)
+    output = output[:,1:]
+    labels = labels[:,1:]
 
     # Compute loss
     loss = loss_func( output, labels )
@@ -179,7 +181,7 @@ def train(model, train_dl, loss_func, opt, teacher_forcing_ratio):
 
     for labels, seqs in train_dl:
         batch_loss, batch_num_seqs = loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio, opt)
-        epoch_loss += batch_loss * batch_num_seqs
+        epoch_loss += batch_loss
         epoch_num_seqs += batch_num_seqs
 
     return epoch_loss / epoch_num_seqs
@@ -191,7 +193,7 @@ def evaluate(model, loss_func, test_dl):
         losses, nums = zip(
             *[loss_batch( model, loss_func, labels, seqs, teacher_forcing_ratio=0 ) for labels, seqs in test_dl]
         )
-        return np.sum( np.multiply( losses, nums ) ) / np.sum( nums )
+        return np.sum( losses ) / np.sum( nums )
 
 
 def epoch_time(start_time, end_time):
@@ -201,7 +203,7 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 
-def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5):
+def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5, FILENAME='aa'):
     """ Fits model on train data, printing val and train loss"""
 
     best_val_loss = float('inf')
@@ -217,7 +219,7 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
 
         if valid_loss < best_val_loss:
             best_val_loss = valid_loss
-            torch.save( model.state_dict(), 'autoEncoder-3.pt' )
+            torch.save( model.state_dict(), FILENAME )
 
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
@@ -225,7 +227,7 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
         print(f'\tTrain Loss: {train_loss:.5f} |  Val. Loss: {valid_loss:.5f}')
 
 
-def cutStartAndEndToken( seq ):
+def cutStartAndEndToken(seq):
     ret = []
     for stim in seq[1:]:
         if stim == END_TOKEN:
@@ -248,10 +250,74 @@ def visual_eval(model, test_dl):
                 print( f'Same: {trgtlist == predlist} Truth: {trgtlist} - Pred: {predlist}' )
 
 
+def softmax( x ):
+    return x.exp() / x.exp().sum(-1).unsqueeze(-1)
+
+class SequenceLoss():
+
+    def __init__(self, grammarGen: GrammarGen, grammaticality_bias=0.5, punishment=2):
+        self.ggen = grammarGen
+        self.gbias = grammaticality_bias
+        self.number_grammar = grammarGen.number_grammar
+        self.punishment = punishment
+
+
+    def __call__(self, outputs: torch.tensor, labels):
+
+        bs, seqlength, vocab_size  = outputs.size()
+
+        # print( outputs )
+
+        outputs = softmax( outputs )
+
+        print( outputs )
+
+        # Judge grammaticality
+        predictions = torch.argmax( outputs, -1 )
+
+        # print( predictions )
+        #print( outputs.mean() )
+        for b in range( predictions.size(0) ):
+
+            seq = predictions[b]
+
+            seq_ints = seq.tolist()
+            finished = False
+            for i in range( len( seq ) - 1 ):
+
+                # If padtoken predicted
+                if seq_ints[i] == PAD_TOKEN:
+                    # mult with 0
+                    continue
+                # When sequence ends early
+                if seq_ints[i] == END_TOKEN:
+                    # set rest of numbers to 0 loss
+                    for j in range( i + 1, len( seq ) - 1 ):
+                        outputs[b][j] = outputs[b][j] * 0
+                    finished = True
+                    break
+
+                # Check whether number pairs are in grammar
+                if seq_ints[i + 1] in self.number_grammar[seq_ints[i]]:
+                    outputs[b][i] = outputs[b][i] * 0
+                else:
+                    outputs[b][i] = outputs[b][i] * self.punishment
+
+            # Handle last token
+            if seq_ints[-1] == END_TOKEN or finished:
+                outputs[b][-1] = outputs[b][-1] * 0
+            else:
+                outputs[b][-1] = outputs[b][-1] * self.punishment
+
+        return outputs.sum(-1).mean()
+
+
 def main():
     bs = 2
     # Grammar
     ggen = GrammarGen()
+
+    # Note: BATCH IS IN FIRST DIMENSION
     # Train
     train_seqs = ggen.stim2seqs( get_trainstimuliSequence() )
     train_ds = SequenceDataset( train_seqs )
@@ -274,28 +340,30 @@ def main():
 
     # Misc parameters
     # dropout?
-    epochs = 100
-    lr = 0.001
+    epochs = 150
+    lr = 0.01
     teacher_forcing_ratio = 0.5
     use_embedding = True
     hidden_dim = 4
-    n_layers = 7
-    start_from_scratch = False
-    input_dim = len( ggen ) + 3 # need 3 tokens to symbolize start, end, and padding
+    n_layers = 4
+    start_from_scratch = True
+    input_dim = len( ggen ) + 1 # need padding token to symbolize start, end, and padding
+    FILENAME = 'autoEncoder-4.pt'
 
     # Get Model
     model, opt = get_model( input_dim, hidden_dim, n_layers, lr, use_embedding )
     if  not start_from_scratch:
-        model.load_state_dict( torch.load( 'autoEncoder-3.pt' ) )
+        model.load_state_dict( torch.load( FILENAME ) )
 
     # Loss Function
-    loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN )
+    #loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN, reduction='sum' )
+    loss_func = SequenceLoss( ggen )
 
     # Train
-    fit( epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio )
+    fit( epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio, FILENAME )
 
     # Load best model
-    model.load_state_dict( torch.load( 'autoEncoder-3.pt' ) )
+    model.load_state_dict( torch.load( FILENAME ) )
 
     # Test
     print( '\nTrain' )

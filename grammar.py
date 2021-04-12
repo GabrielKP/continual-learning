@@ -7,6 +7,10 @@ from torch import nn
 from torch.utils.data.dataset import Dataset
 from torch.utils.data import DataLoader
 
+PAD_TOKEN = 0   # ugly but works for now
+START_TOKEN = 1
+END_TOKEN = 2
+
 device = torch.device( 'cuda' if torch.cuda.is_available() else 'cpu' )
 
 class GrammarGen():
@@ -39,8 +43,8 @@ class GrammarGen():
         """
         Creates Mapping from Stimulus to Output
         """
-        stimulusToOutput = dict()
-        cores = dict() # keep track of same output letters
+        stimulusToOutput = { 'END': END_TOKEN, 'START': START_TOKEN, 'PAD': PAD_TOKEN }
+        cores = { 'END': END_TOKEN, 'START': START_TOKEN,'PAD': PAD_TOKEN } # keep track of same output letters
         i = 3
         for stimulus in self.grammar:
             if stimulus == 'START':
@@ -50,8 +54,29 @@ class GrammarGen():
                 cores[core] = i
                 i += 1
             stimulusToOutput[stimulus] = cores[core]
+
+        # Mapping Stimulus to Number (C1 -> 4, C2 -> 4, A -> 3)
         self.stim2out = stimulusToOutput
+        # Mapping Core-Stimulus to Number (C -> 4, A -> 3)
         self.cores = cores
+        # Convert Grammar to stimulus Numbers
+        self.number_grammar = dict()
+
+        # rules in grammar are in form stimA -> simsB with stimsB being a list
+        for stimA, stimsB in self.grammar.items():
+
+            converted_stim = self.stim2out[stimA]
+
+            # Handle case where stimulus can be present twice or more in grammar
+            if converted_stim in self.number_grammar:
+                # Merge different possibiliteis for stimsB
+                self.number_grammar[converted_stim].extend( [ self.stim2out[stim] for stim in stimsB ] )
+                # Make sure nothing is double
+                self.number_grammar[converted_stim] = list( set( self.number_grammar[converted_stim] ) )
+                continue
+
+            self.number_grammar[converted_stim] = [ self.stim2out[stim] for stim in stimsB ]
+
 
     def __len__(self):
         return len(self.cores)
@@ -83,6 +108,10 @@ class GrammarGen():
 
     def generateUngrammatical(self, n):
         pass
+
+    def transitionProbabilities(self):
+        pass
+
 
 
 class SequenceDataset( Dataset ):
