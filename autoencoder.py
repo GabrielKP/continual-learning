@@ -2,14 +2,13 @@
 
 import time
 import random
-import sys
 import torch
 import numpy as np
 from torch.nn.modules import dropout
 from torch.optim import optimizer
 from torch.utils.data.dataloader import DataLoader
 
-from grammar import GrammarGen, SequenceDataset, collate_batch, get_correctStimuliSequence, get_incorrectStimuliSequence, get_trainstimuliSequence, get_teststimuliSequence
+from grammar import GrammarGen, START_TOKEN, SequenceDataset, collate_batch, get_correctStimuliSequence, get_incorrectStimuliSequence, get_trainstimuliSequence, get_teststimuliSequence
 
 from torch import nn
 from torch import optim
@@ -35,6 +34,7 @@ class Encoder(nn.Module):
         self.embed = nn.Embedding( self.input_dim, self.embedding_dim )
         if not embedding:
             self.embed.weight.data = torch.eye( input_dim )
+
         self.lstm = nn.LSTM( self.intermediate_dim, self.hidden_dim, n_layers, batch_first=True )
 
         self.linear = nn.Linear( self.embedding_dim, self.intermediate_dim )
@@ -125,7 +125,7 @@ class AutoEncoder(nn.Module):
         hidden, cell = self.encoder( seqs )
 
         # First input to decoder is start sequence token
-        nInput = torch.tensor( [ 1 ] * batch_size )
+        nInput = torch.tensor( [ START_TOKEN ] * batch_size )
 
         # Let's go
         for t in range( 1, max_len ):
@@ -178,6 +178,7 @@ def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=No
     output = output[:,1:]
     labels = labels[:,1:]
 
+    # print( "------------------" )
     # print( output )
     # print( labels )
 
@@ -264,6 +265,8 @@ def visual_eval(model, test_dl):
         for labels, seqs in test_dl:
             output = model( labels, seqs, teacher_forcing_ratio=0 )
             predictions = output.argmax(-1)
+            # print( output )
+            # print( predictions )
             for i, seq in enumerate( seqs ):
                 trgtlist = seq.tolist()[1:-1]
                 predlist = [ x for x in predictions[i].tolist()[1:-1] if x != 2 ]
@@ -282,6 +285,7 @@ class SequenceLoss():
         self.gbias = grammaticality_bias
         self.number_grammar = grammarGen.number_grammar
         self.punishment = punishment
+        self.ignore_index = ignore_index
 
         self.CEloss = nn.CrossEntropyLoss( ignore_index=ignore_index )
 
@@ -292,11 +296,11 @@ class SequenceLoss():
         # Grammaticality Matrix is a Matrix of ones, in which
         # only the entries are 0 which are in the grammar
         vocab_size = len( self.ggen )
-        self.grammaticalityMatrix = torch.zeros( ( vocab_size, vocab_size ) )
+        self.grammaticalityMatrix = torch.ones( ( vocab_size, vocab_size ) )
 
         for stimA, stimBs in self.number_grammar.items():
             for stimB in stimBs:
-                self.grammaticalityMatrix[stimA, stimB] = 1.0
+                self.grammaticalityMatrix[stimA, stimB] = 0
 
         print( self.grammaticalityMatrix )
         self.grammaticality_indices = self.grammaticalityMatrix == 1
@@ -313,7 +317,7 @@ class SequenceLoss():
         # print( outputs )
 
         # Convert to probabilities
-        outputs = - softmax( outputs ).log()
+        outputs = softmax( outputs )
 
         # print( outputs )
         # print( labels )
@@ -344,7 +348,7 @@ class SequenceLoss():
                 # continue
 
                 # if sequence ended, then ignore
-                if labels[batch,i] == 2:
+                if labels[batch,i] == self.ignore_index:
                     break
 
                 prev =  torch.tensor( seq[i].unsqueeze(0).transpose( 0, 1 ).tolist() )
@@ -358,13 +362,13 @@ class SequenceLoss():
                 # print( errorMatrix )
                 # print( errorMatrix.sum() )
 
-                loss[batch, i] = errorMatrix.sum() * self.punishment
+                loss[batch, i] = ( errorMatrix.sum() * self.punishment ).pow(2)
 
         return loss.mean() * self.gbias + self.CEloss( CEOutputs, CELabels ) * ( 1 - self.gbias )
 
 
 def main():
-    bs = 2
+    bs = 1
     # Grammar
     ggen = GrammarGen()
 
@@ -377,12 +381,12 @@ def main():
     # Validation
     valid_seqs = ggen.generate( 20 )
     valid_ds = SequenceDataset( valid_seqs )
-    valid_dl = DataLoader( valid_ds, batch_size=bs * 2, collate_fn=collate_batch )
+    valid_dl = DataLoader( valid_ds, batch_size=bs, collate_fn=collate_batch )
 
     # Test - Correct
     test_seqs = ggen.stim2seqs( get_correctStimuliSequence() )
     test_ds = SequenceDataset( test_seqs )
-    test_dl = DataLoader( test_ds, batch_size=bs * 2, collate_fn=collate_batch )
+    test_dl = DataLoader( test_ds, batch_size=bs, collate_fn=collate_batch )
 
     # Test - Incorrect
     test_incorrect_seqs = ggen.stim2seqs( get_incorrectStimuliSequence() )
@@ -391,8 +395,8 @@ def main():
 
     # Misc parameters
     # dropout?
-    epochs = 200
-    lr = 0.001
+    epochs = 100
+    lr = 0.0001
     teacher_forcing_ratio = 0.5
     use_embedding = True
     hidden_dim = 5
@@ -401,7 +405,8 @@ def main():
     dropout = 0.5
     start_from_scratch = False
     input_dim = len( ggen )
-    FILENAME = 'autoEncoder-4.pt'
+    # 4.pt 200 3
+    FILENAME = 'autoEncoder-5.pt'
 
     # Get Model
     model, opt = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding )
@@ -410,7 +415,7 @@ def main():
 
     # Loss Function
     # loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN, reduction='sum' )
-    loss_func = SequenceLoss( ggen, ignore_index=PAD_TOKEN, grammaticality_bias=0 )
+    loss_func = SequenceLoss( ggen, ignore_index=PAD_TOKEN, grammaticality_bias=0, punishment=1 )
 
     # Train
     fit( epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio, FILENAME )
@@ -441,6 +446,12 @@ def main():
     print( '\nTest - Incorrect' )
     visual_eval( model, test_incorrect_dl )
     print( evaluate( model, loss_func, test_incorrect_dl ) )
+
+
+def othermain():
+
+    ggen = GrammarGen()
+    loss = SequenceLoss( ggen, ignore_index=PAD_TOKEN, grammaticality_bias=1 )
 
 
 if __name__ == '__main__':
