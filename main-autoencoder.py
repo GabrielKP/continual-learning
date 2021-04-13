@@ -143,7 +143,7 @@ def get_model(input_dim, hidden_dim, n_layers, lr, use_embedding=True):
     model = AutoEncoder( encoder, decoder )
     print( model.apply( init_weights ) )
     print( f'The model has {count_parameters(model):,} trainable parameters' )
-    return model, optim.Adam( model.parameters(), lr=lr )
+    return model, optim.AdamW( model.parameters(), lr=lr )
 
 
 def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=None):
@@ -154,10 +154,10 @@ def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=No
     output = model( labels, seqs, teacher_forcing_ratio )
 
     # Cut of start sequence & reshaping
-    # output = output[:,1:].reshape(-1, model.decoder.output_dim )
-    # labels = labels[:,1:].reshape(-1)
-    output = output[:,1:]
-    labels = labels[:,1:]
+    output = output[:,1:].reshape(-1, model.decoder.output_dim )
+    labels = labels[:,1:].reshape(-1)
+    # output = output[:,1:]
+    # labels = labels[:,1:]
 
     # Compute loss
     loss = loss_func( output, labels )
@@ -181,7 +181,7 @@ def train(model, train_dl, loss_func, opt, teacher_forcing_ratio):
 
     for labels, seqs in train_dl:
         batch_loss, batch_num_seqs = loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio, opt)
-        epoch_loss += batch_loss
+        epoch_loss += batch_loss * batch_num_seqs
         epoch_num_seqs += batch_num_seqs
 
     return epoch_loss / epoch_num_seqs
@@ -193,7 +193,7 @@ def evaluate(model, loss_func, test_dl):
         losses, nums = zip(
             *[loss_batch( model, loss_func, labels, seqs, teacher_forcing_ratio=0 ) for labels, seqs in test_dl]
         )
-        return np.sum( losses ) / np.sum( nums )
+        return np.sum( np.multiply( losses, nums ) ) / np.sum( nums )
 
 
 def epoch_time(start_time, end_time):
@@ -255,61 +255,91 @@ def softmax( x ):
 
 class SequenceLoss():
 
-    def __init__(self, grammarGen: GrammarGen, grammaticality_bias=0.5, punishment=2):
+    def __init__(self, grammarGen: GrammarGen, grammaticality_bias=0.0, punishment=1):
         self.ggen = grammarGen
         self.gbias = grammaticality_bias
         self.number_grammar = grammarGen.number_grammar
         self.punishment = punishment
 
+        self.CEloss = nn.CrossEntropyLoss( ignore_index=2 )
 
-    def __call__(self, outputs: torch.tensor, labels):
+        self.init_grammaticalityMatrix()
+
+    def init_grammaticalityMatrix(self):
+
+        # Grammaticality Matrix is a Matrix of ones, in which
+        # only the entries are 0 which are in the grammar
+        vocab_size = len( self.ggen )
+        self.grammaticalityMatrix = torch.zeros( ( vocab_size, vocab_size ) )
+
+        for stimA, stimBs in self.number_grammar.items():
+            for stimB in stimBs:
+                self.grammaticalityMatrix[stimA, stimB] = 1.0
+
+        print( self.grammaticalityMatrix )
+        self.grammaticality_indices = self.grammaticalityMatrix == 1
+
+
+    def __call__(self, outputs: torch.tensor, labels: torch.tensor):
 
         bs, seqlength, vocab_size  = outputs.size()
 
+        CEOutputs = outputs[:,1:].reshape(-1, vocab_size )
+        CElabels = labels[:,1:].reshape(-1)
+
+        ## print( "BOSD", vocab_size )
         # print( outputs )
 
-        outputs = softmax( outputs )
+        # Convert to probabilities
+        outputs = - softmax( outputs ).log()
 
-        print( outputs )
+        # print( outputs )
+        # print( labels )
+
+        loss = torch.zeros( ( bs, seqlength - 1 ) )
+
+        # test = torch.zeros( ( vocab_size ) )
+        # test[6] = 1.0
+        # test[7] = 1.0
 
         # Judge grammaticality
-        predictions = torch.argmax( outputs, -1 )
+        for batch in range( bs ):
 
-        # print( predictions )
-        #print( outputs.mean() )
-        for b in range( predictions.size(0) ):
+            seq = outputs[batch]
 
-            seq = predictions[b]
+            # seq = torch.tensor(
+            #     [[0, 1, 0, 0, 0, 0, 0, 0],
+            #     [0, 0, 0, 1, 0, 0, 0, 0],
+            #     [1.6311e-06, 9.4581e-07, 2.9531e-05, 7.9313e-07, 4.9984e-01, 1.8668e-04, 9.9475e-07, 4.9994e-01],
+            #     [1.6311e-06, 9.4579e-07, 2.9530e-05, 7.9310e-07, 4.9984e-01, 1.8668e-04, 9.9473e-07, 4.9994e-01],
+            #     [1.6311e-06, 9.4579e-07, 2.9530e-05, 7.9310e-07, 4.9984e-01, 1.8668e-04, 9.9473e-07, 4.9994e-01]])
+            # print( "seq" )
+            # print( seq )
+            # Compare stimuli pairwise
+            for i in range( seqlength - 1 ):
 
-            seq_ints = seq.tolist()
-            finished = False
-            for i in range( len( seq ) - 1 ):
+                # loss[batch, i] = (seq[i] * test).sum()
+                # continue
 
-                # If padtoken predicted
-                if seq_ints[i] == PAD_TOKEN:
-                    # mult with 0
-                    continue
-                # When sequence ends early
-                if seq_ints[i] == END_TOKEN:
-                    # set rest of numbers to 0 loss
-                    for j in range( i + 1, len( seq ) - 1 ):
-                        outputs[b][j] = outputs[b][j] * 0
-                    finished = True
+                # if sequence ended, then ignore
+                if labels[batch,i] == 2:
                     break
 
-                # Check whether number pairs are in grammar
-                if seq_ints[i + 1] in self.number_grammar[seq_ints[i]]:
-                    outputs[b][i] = outputs[b][i] * 0
-                else:
-                    outputs[b][i] = outputs[b][i] * self.punishment
+                prev =  torch.tensor( seq[i].unsqueeze(0).transpose( 0, 1 ).tolist() )
 
-            # Handle last token
-            if seq_ints[-1] == END_TOKEN or finished:
-                outputs[b][-1] = outputs[b][-1] * 0
-            else:
-                outputs[b][-1] = outputs[b][-1] * self.punishment
+                transitionMatrix = torch.matmul( prev, seq[i + 1].unsqueeze(0) )
 
-        return outputs.sum(-1).mean()
+                #print( transitionMatrix )
+
+                errorMatrix = transitionMatrix[self.grammaticality_indices]
+
+                # print( errorMatrix )
+                # print( errorMatrix.sum() )
+
+                loss[batch, i] = errorMatrix.mean()
+
+        # return loss.mean() * self.gbias + self.CEloss( CEOutputs, CElabels ) * ( 1 - self.gbias )
+        return self.CEloss( CEOutputs, CElabels )
 
 
 def main():
@@ -340,14 +370,14 @@ def main():
 
     # Misc parameters
     # dropout?
-    epochs = 150
+    epochs = 100
     lr = 0.01
     teacher_forcing_ratio = 0.5
     use_embedding = True
     hidden_dim = 4
     n_layers = 4
-    start_from_scratch = True
-    input_dim = len( ggen ) + 1 # need padding token to symbolize start, end, and padding
+    start_from_scratch = False
+    input_dim = len( ggen )
     FILENAME = 'autoEncoder-4.pt'
 
     # Get Model
@@ -357,13 +387,24 @@ def main():
 
     # Loss Function
     #loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN, reduction='sum' )
-    loss_func = SequenceLoss( ggen )
+    loss_func = nn.CrossEntropyLoss( ignore_index=2 )
 
     # Train
     fit( epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio, FILENAME )
 
     # Load best model
     model.load_state_dict( torch.load( FILENAME ) )
+
+    # for labels, seqs in train_dl:
+    #     labels = nn.utils.rnn.pad_sequence( seqs, batch_first=True, padding_value=PAD_TOKEN ).type( torch.long )
+
+    #     output = model( labels, seqs )
+
+    #     print( "output\n", output )
+    #     print( output.argmax(-1) )
+    #     print( loss_func( output[:,1:], labels[:,1:] ) )
+    #     break
+    # return
 
     # Test
     print( '\nTrain' )
