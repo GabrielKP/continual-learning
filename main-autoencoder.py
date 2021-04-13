@@ -5,6 +5,7 @@ import random
 import sys
 import torch
 import numpy as np
+from torch.nn.modules import dropout
 from torch.optim import optimizer
 from torch.utils.data.dataloader import DataLoader
 
@@ -20,7 +21,7 @@ CLIP = 0.5
 
 class Encoder(nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, n_layers, embedding=True ):
+    def __init__(self, input_dim, hidden_dim, n_layers, dropout, embedding=True ):
         super(Encoder, self).__init__()
 
         # Vars
@@ -35,24 +36,26 @@ class Encoder(nn.Module):
             self.embed.weight.data = torch.eye( input_dim )
         self.lstm = nn.LSTM( self.embedding_dim, self.hidden_dim, n_layers, batch_first=True )
 
-        # Init Params
-        # for param in self.lstm.parameters():
-        #     nn.init.zeros_( param )
-
-        # nn.init.zeros_( self.lin.weight )
+        self.dropout = nn.Dropout( dropout )
 
     def forward(self, seqs):
+
+        # Pad sequences
         lengths = [ len( seq ) for seq in seqs ]
-        padded_seqs = nn.utils.rnn.pad_sequence( seqs, batch_first=True )
-        padded_embeds = self.embed( padded_seqs )
+        padded_seqs = nn.utils.rnn.pad_sequence( seqs, batch_first=True, padding_value=PAD_TOKEN )
+
+        padded_embeds = self.dropout( self.embed( padded_seqs ) )
+
         padded_embeds_packed = nn.utils.rnn.pack_padded_sequence( padded_embeds, lengths, batch_first=True, enforce_sorted=False )
+
         _, (hidden, cell) = self.lstm( padded_embeds_packed )
+
         return  hidden, cell
 
 
 class Decoder(nn.Module):
 
-    def __init__(self, output_dim, hidden_dim, n_layers, embedding=True ):
+    def __init__(self, output_dim, hidden_dim, n_layers, dropout, embedding=True ):
         super(Decoder, self).__init__()
 
         # Vars
@@ -70,12 +73,14 @@ class Decoder(nn.Module):
 
         self.fc_out = nn.Linear( hidden_dim, output_dim )
 
+        self.dropout = nn.Dropout( dropout )
+
 
     def forward(self, nInput, hidden, cell):
 
         nInput = nInput.unsqueeze(-1)
 
-        embedded = self.embed( nInput )
+        embedded = self.dropout( self.embed( nInput ) )
 
         output, (hidden, cell) = self.lstm( embedded, ( hidden, cell ) )
 
@@ -135,10 +140,10 @@ def count_parameters(model):
     return sum( p.numel() for p in model.parameters() if p.requires_grad )
 
 
-def get_model(input_dim, hidden_dim, n_layers, lr, use_embedding=True):
+def get_model(input_dim, hidden_dim, n_layers, lr, dropout, use_embedding=True):
 
-    encoder = Encoder( input_dim, hidden_dim, n_layers, use_embedding )
-    decoder = Decoder( input_dim, hidden_dim, n_layers, use_embedding )
+    encoder = Encoder( input_dim, hidden_dim, n_layers, dropout, use_embedding )
+    decoder = Decoder( input_dim, hidden_dim, n_layers, dropout, use_embedding )
 
     model = AutoEncoder( encoder, decoder )
     print( model.apply( init_weights ) )
@@ -339,7 +344,6 @@ class SequenceLoss():
                 loss[batch, i] = errorMatrix.sum() * self.punishment
 
         return loss.mean() * self.gbias + self.CEloss( CEOutputs, CELabels ) * ( 1 - self.gbias )
-        #return self.CEloss( CEOutputs, CELabels )
 
 
 def main():
@@ -376,12 +380,13 @@ def main():
     use_embedding = True
     hidden_dim = 5
     n_layers = 2
+    dropout = 0.5
     start_from_scratch = False
     input_dim = len( ggen )
     FILENAME = 'autoEncoder-4.pt'
 
     # Get Model
-    model, opt = get_model( input_dim, hidden_dim, n_layers, lr, use_embedding )
+    model, opt = get_model( input_dim, hidden_dim, n_layers, lr, dropout, use_embedding )
     if  not start_from_scratch:
         model.load_state_dict( torch.load( FILENAME ) )
 
