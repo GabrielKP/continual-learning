@@ -154,10 +154,10 @@ def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=No
     output = model( labels, seqs, teacher_forcing_ratio )
 
     # Cut of start sequence & reshaping
-    output = output[:,1:].reshape(-1, model.decoder.output_dim )
-    labels = labels[:,1:].reshape(-1)
-    # output = output[:,1:]
-    # labels = labels[:,1:]
+    # output = output[:,1:].reshape(-1, model.decoder.output_dim )
+    # labels = labels[:,1:].reshape(-1)
+    output = output[:,1:]
+    labels = labels[:,1:]
 
     # Compute loss
     loss = loss_func( output, labels )
@@ -255,13 +255,13 @@ def softmax( x ):
 
 class SequenceLoss():
 
-    def __init__(self, grammarGen: GrammarGen, grammaticality_bias=0.0, punishment=1):
+    def __init__(self, grammarGen: GrammarGen, ignore_index=None, grammaticality_bias=0.5, punishment=1):
         self.ggen = grammarGen
         self.gbias = grammaticality_bias
         self.number_grammar = grammarGen.number_grammar
         self.punishment = punishment
 
-        self.CEloss = nn.CrossEntropyLoss( ignore_index=2 )
+        self.CEloss = nn.CrossEntropyLoss( ignore_index=ignore_index )
 
         self.init_grammaticalityMatrix()
 
@@ -285,7 +285,7 @@ class SequenceLoss():
         bs, seqlength, vocab_size  = outputs.size()
 
         CEOutputs = outputs[:,1:].reshape(-1, vocab_size )
-        CElabels = labels[:,1:].reshape(-1)
+        CELabels = labels[:,1:].reshape(-1)
 
         ## print( "BOSD", vocab_size )
         # print( outputs )
@@ -336,10 +336,10 @@ class SequenceLoss():
                 # print( errorMatrix )
                 # print( errorMatrix.sum() )
 
-                loss[batch, i] = errorMatrix.mean()
+                loss[batch, i] = errorMatrix.sum() * self.punishment
 
-        # return loss.mean() * self.gbias + self.CEloss( CEOutputs, CElabels ) * ( 1 - self.gbias )
-        return self.CEloss( CEOutputs, CElabels )
+        return loss.mean() * self.gbias + self.CEloss( CEOutputs, CELabels ) * ( 1 - self.gbias )
+        #return self.CEloss( CEOutputs, CELabels )
 
 
 def main():
@@ -371,11 +371,11 @@ def main():
     # Misc parameters
     # dropout?
     epochs = 100
-    lr = 0.01
+    lr = 0.001
     teacher_forcing_ratio = 0.5
     use_embedding = True
-    hidden_dim = 4
-    n_layers = 4
+    hidden_dim = 5
+    n_layers = 2
     start_from_scratch = False
     input_dim = len( ggen )
     FILENAME = 'autoEncoder-4.pt'
@@ -386,8 +386,8 @@ def main():
         model.load_state_dict( torch.load( FILENAME ) )
 
     # Loss Function
-    #loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN, reduction='sum' )
-    loss_func = nn.CrossEntropyLoss( ignore_index=2 )
+    # loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN, reduction='sum' )
+    loss_func = SequenceLoss( ggen, ignore_index=PAD_TOKEN, grammaticality_bias=0 )
 
     # Train
     fit( epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio, FILENAME )
