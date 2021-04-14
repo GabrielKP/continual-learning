@@ -37,27 +37,34 @@ class Encoder(nn.Module):
 
         self.lstm = nn.LSTM( self.intermediate_dim, self.hidden_dim, n_layers, batch_first=True )
 
-        self.linear = nn.Linear( self.embedding_dim, self.intermediate_dim )
+        self.fc_one = nn.Linear( self.embedding_dim, self.intermediate_dim )
 
-        self.relu = nn.ReLU()
+        self.ac_one = nn.ReLU()
 
         self.dropout = nn.Dropout( dropout )
 
     def forward(self, seqs):
 
-        # Pad sequences
-        lengths = [ len( seq ) for seq in seqs ]
-        padded_seqs = nn.utils.rnn.pad_sequence( seqs, batch_first=True, padding_value=PAD_TOKEN )
+        # Handle sequences separately
 
-        padded_embeds = self.dropout( self.embed( padded_seqs ) )
+        hiddens = []
+        cells = []
 
-        intermediate = self.dropout( self.relu( self.linear( padded_embeds ) ) )
+        for seq in seqs:
 
-        padded_embeds_packed = nn.utils.rnn.pack_padded_sequence( intermediate, lengths, batch_first=True, enforce_sorted=False )
+            embed = self.dropout( self.embed( seq ) )
 
-        _, (hidden, cell) = self.lstm( padded_embeds_packed )
+            intermediate = self.dropout( self.ac_one( self.fc_one( embed ) ) )
 
-        return  hidden, cell
+            _, (hidden, cell) = self.lstm( intermediate.unsqueeze(0) )
+
+            hiddens.append( hidden.squeeze() )
+            cells.append( cell.squeeze() )
+
+        hiddens = torch.stack( hiddens )
+        cells = torch.stack( cells )
+
+        return  hiddens, cells
 
 
 class Decoder(nn.Module):
@@ -81,26 +88,24 @@ class Decoder(nn.Module):
 
         self.fc_out = nn.Linear( intermediate_dim, output_dim )
 
-        self.linear = nn.Linear( hidden_dim, intermediate_dim )
+        self.fc_one = nn.Linear( hidden_dim, intermediate_dim )
 
-        self.relu = nn.ReLU()
+        self.ac_one = nn.ReLU()
 
         self.dropout = nn.Dropout( dropout )
 
 
     def forward(self, nInput, hidden, cell):
 
-        nInput = nInput.unsqueeze(-1)
+        embed = self.dropout( self.embed( nInput ) )
 
-        embedded = self.dropout( self.embed( nInput ) )
+        output, (hidden, cell) = self.lstm( embed.unsqueeze(0).unsqueeze(0), (hidden.unsqueeze(1), cell.unsqueeze(1)) )
 
-        output, (hidden, cell) = self.lstm( embedded, ( hidden, cell ) )
+        intermediate = self.dropout( self.ac_one( self.fc_one( output.squeeze() ) ) )
 
-        intermediate = self.dropout( self.relu( self.linear( output.squeeze(1) ) ) )
+        output = self.fc_out( intermediate )
 
-        prediction = self.fc_out( intermediate )
-
-        return  prediction, hidden, cell
+        return  output, hidden.squeeze(), cell.squeeze()
 
 
 class AutoEncoder(nn.Module):
@@ -112,35 +117,45 @@ class AutoEncoder(nn.Module):
 
     def forward(self, labels, seqs, teacher_forcing_ratio = 0.5 ):
 
-        trgts = nn.utils.rnn.pad_sequence( seqs, batch_first=True, padding_value=PAD_TOKEN )
-
-        batch_size = len( seqs )
-        trgt_vocab_size = self.decoder.output_dim
-        max_len = max( [len( seq ) for seq in seqs] )
+        bs = len( seqs )
 
         # Vector to store outputs
-        outputs = torch.zeros( batch_size, max_len, trgt_vocab_size )
+        outputs = []
 
         # Encode
-        hidden, cell = self.encoder( seqs )
+        hiddens, cells = self.encoder( seqs )
 
         # First input to decoder is start sequence token
-        nInput = torch.tensor( [ START_TOKEN ] * batch_size )
+        nInputs = torch.tensor( [ START_TOKEN ] * bs )
 
-        # Let's go
-        for t in range( 1, max_len ):
+        # Decide once beforand for teacherforcing or not
+        teacher_forcing = random.random() < teacher_forcing_ratio
 
-            # Decode stimulus
-            output, hidden, cell = self.decoder( nInput, hidden, cell )
+        for b in range(bs):
+            nInput = nInputs[b]
+            hidden = hiddens[b]
+            cell = cells[b]
+            seq = seqs[b]
 
-            # Save output
-            outputs[:,t] = output
+            seq_out = []
 
-            # Teacher forcing
-            if random.random() < teacher_forcing_ratio:
-                nInput = trgts[:,t]
-            else:
-                nInput = output.argmax(-1)
+            for t in range( 1, len( seq ) ):
+
+                # Decode stimulus
+                output, hidden, cell = self.decoder( nInput, hidden, cell )
+
+                # Save output
+                seq_out.append( output )
+
+                # Teacher forcing
+                if teacher_forcing:
+                    nInput = seq[t]
+                else:
+                    nInput = output.argmax(-1)
+
+            seq_out = torch.stack( seq_out )
+
+            outputs.append( seq_out )
 
         return outputs
 
@@ -167,7 +182,7 @@ def get_model(input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, us
 
 def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=None):
     # loss function gets padded sequences -> autoencoder
-    labels = nn.utils.rnn.pad_sequence( seqs, batch_first=True, padding_value=PAD_TOKEN ).type( torch.long )
+    labels = seqs
 
     # Get model output
     output = model( labels, seqs, teacher_forcing_ratio )
@@ -175,8 +190,6 @@ def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=No
     # Cut of start sequence & reshaping
     # output = output[:,1:].reshape(-1, model.decoder.output_dim )
     # labels = labels[:,1:].reshape(-1)
-    output = output[:,1:]
-    labels = labels[:,1:]
 
     # print( "------------------" )
     # print( output )
@@ -221,8 +234,8 @@ def evaluate(model, loss_func, test_dl):
 
 def epoch_time(start_time, end_time):
     elapsed_time = end_time - start_time
-    elapsed_mins = int(elapsed_time / 60)
-    elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
+    elapsed_mins = int( elapsed_time / 60 )
+    elapsed_secs = elapsed_time - (elapsed_mins * 60)
     return elapsed_mins, elapsed_secs
 
 
@@ -246,13 +259,13 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
 
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
-        print(f'Epoch: {epoch+1:03} | Time: {epoch_mins}m {epoch_secs}s')
+        print(f'Epoch: {epoch+1:03} | Time: {epoch_mins}m {epoch_secs:.2}s')
         print(f'\tTrain Loss: {train_loss:.5f} |  Val. Loss: {valid_loss:.5f}')
 
 
 def cutStartAndEndToken(seq):
     ret = []
-    for stim in seq[1:]:
+    for stim in seq:
         if stim == END_TOKEN:
             break
         ret.append( stim )
@@ -264,14 +277,11 @@ def visual_eval(model, test_dl):
     with torch.no_grad():
         for labels, seqs in test_dl:
             output = model( labels, seqs, teacher_forcing_ratio=0 )
-            predictions = output.argmax(-1)
             # print( output )
-            # print( predictions )
-            for i, seq in enumerate( seqs ):
+            for b, seq in enumerate( seqs ):
+                prediction = output[b].argmax(-1)
                 trgtlist = seq.tolist()[1:-1]
-                predlist = [ x for x in predictions[i].tolist()[1:-1] if x != 2 ]
-                predlist = cutStartAndEndToken( predictions[i].tolist() )
-                # needs to be fixed to only cut of suffixes
+                predlist = cutStartAndEndToken( prediction.tolist() )
                 print( f'Same: {trgtlist == predlist} Truth: {trgtlist} - Pred: {predlist}' )
 
 
@@ -308,67 +318,76 @@ class SequenceLoss():
 
     def __call__(self, outputs: torch.tensor, labels: torch.tensor):
 
-        bs, seqlength, vocab_size  = outputs.size()
+        bs = len( outputs )
 
-        CEOutputs = outputs.reshape(-1, vocab_size )
-        CELabels = labels.reshape(-1)
+        loss = torch.zeros( bs )
 
-        ## print( "BOSD", vocab_size )
-        # print( outputs )
+        for b in range(bs):
 
-        # Convert to probabilities
-        outputs = softmax( outputs )
+            CEOutput = outputs[b]
+            CELabel = labels[b][1:].type( torch.long )
 
-        # print( outputs )
-        # print( labels )
+            loss[b] = self.CEloss( CEOutput, CELabel )
 
-        loss = torch.zeros( ( bs, seqlength - 1 ) )
+        return loss.mean()
 
-        # test = torch.zeros( ( vocab_size ) )
-        # test[6] = 1.0
-        # test[7] = 1.0
+        # ## print( "BOSD", vocab_size )
+        # # print( outputs )
 
-        # Judge grammaticality
-        for batch in range( bs ):
+        # # Convert to probabilities
+        # outputs = softmax( outputs )
 
-            seq = outputs[batch]
+        # # print( outputs )
+        # # print( labels )
 
-            # seq = torch.tensor(
-            #     [[0, 1, 0, 0, 0, 0, 0, 0],
-            #     [0, 0, 0, 1, 0, 0, 0, 0],
-            #     [1.6311e-06, 9.4581e-07, 2.9531e-05, 7.9313e-07, 4.9984e-01, 1.8668e-04, 9.9475e-07, 4.9994e-01],
-            #     [1.6311e-06, 9.4579e-07, 2.9530e-05, 7.9310e-07, 4.9984e-01, 1.8668e-04, 9.9473e-07, 4.9994e-01],
-            #     [1.6311e-06, 9.4579e-07, 2.9530e-05, 7.9310e-07, 4.9984e-01, 1.8668e-04, 9.9473e-07, 4.9994e-01]])
-            # print( "seq" )
-            # print( seq )
-            # Compare stimuli pairwise
-            for i in range( seqlength - 1 ):
+        # loss = torch.zeros( ( bs, seqlength - 1 ) )
 
-                # loss[batch, i] = (seq[i] * test).sum()
-                # continue
+        # # test = torch.zeros( ( vocab_size ) )
+        # # test[6] = 1.0
+        # # test[7] = 1.0
 
-                # if sequence ended, then ignore
-                if labels[batch,i] == self.ignore_index:
-                    break
+        # # Judge grammaticality
+        # for batch in range( bs ):
 
-                prev =  torch.tensor( seq[i].unsqueeze(0).transpose( 0, 1 ).tolist() )
+        #     seq = outputs[batch]
 
-                transitionMatrix = torch.matmul( prev, seq[i + 1].unsqueeze(0) )
+        #     # seq = torch.tensor(
+        #     #     [[0, 1, 0, 0, 0, 0, 0, 0],
+        #     #     [0, 0, 0, 1, 0, 0, 0, 0],
+        #     #     [1.6311e-06, 9.4581e-07, 2.9531e-05, 7.9313e-07, 4.9984e-01, 1.8668e-04, 9.9475e-07, 4.9994e-01],
+        #     #     [1.6311e-06, 9.4579e-07, 2.9530e-05, 7.9310e-07, 4.9984e-01, 1.8668e-04, 9.9473e-07, 4.9994e-01],
+        #     #     [1.6311e-06, 9.4579e-07, 2.9530e-05, 7.9310e-07, 4.9984e-01, 1.8668e-04, 9.9473e-07, 4.9994e-01]])
+        #     # print( "seq" )
+        #     # print( seq )
+        #     # Compare stimuli pairwise
+        #     for i in range( seqlength - 1 ):
 
-                #print( transitionMatrix )
+        #         # loss[batch, i] = (seq[i] * test).sum()
+        #         # continue
 
-                errorMatrix = transitionMatrix[self.grammaticality_indices]
+        #         # if sequence ended, then ignore
+        #         if labels[batch,i] == self.ignore_index:
+        #             break
 
-                # print( errorMatrix )
-                # print( errorMatrix.sum() )
+        #         prev =  torch.tensor( seq[i].unsqueeze(0).transpose( 0, 1 ).tolist() )
 
-                loss[batch, i] = ( errorMatrix.sum() * self.punishment ).pow(2)
+        #         transitionMatrix = torch.matmul( prev, seq[i + 1].unsqueeze(0) )
 
+        #         #print( transitionMatrix )
+
+        #         errorMatrix = transitionMatrix[self.grammaticality_indices]
+
+        #         # print( errorMatrix )
+        #         # print( errorMatrix.sum() )
+
+        #         loss[batch, i] = ( errorMatrix.sum() * self.punishment ).pow(2)
+
+        return self.CEloss( CEOutputs, CELabels )
         return loss.mean() * self.gbias + self.CEloss( CEOutputs, CELabels ) * ( 1 - self.gbias )
 
 
 def main():
-    bs = 1
+    bs = 3
     # Grammar
     ggen = GrammarGen()
 
@@ -395,18 +414,20 @@ def main():
 
     # Misc parameters
     # dropout?
-    epochs = 100
+    epochs = 5000
     lr = 0.0001
     teacher_forcing_ratio = 0.5
     use_embedding = True
     hidden_dim = 5
-    intermediate_dim = 100
-    n_layers = 3
+    intermediate_dim = 200
+    n_layers = 4
     dropout = 0.5
-    start_from_scratch = False
+    start_from_scratch = True
     input_dim = len( ggen )
     # 4.pt 200 3
+    # 5.pt 100 3 5
     FILENAME = 'autoEncoder-5.pt'
+    # torch.autograd.set_detect_anomaly(True)
 
     # Get Model
     model, opt = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding )
