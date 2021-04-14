@@ -4,8 +4,6 @@ import time
 import random
 import torch
 import numpy as np
-from torch.nn.modules import dropout
-from torch.optim import optimizer
 from torch.utils.data.dataloader import DataLoader
 
 from grammar import GrammarGen, START_TOKEN, SequenceDataset, collate_batch, get_correctStimuliSequence, get_incorrectStimuliSequence, get_trainstimuliSequence, get_teststimuliSequence
