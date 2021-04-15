@@ -396,7 +396,7 @@ def main():
     train_dl = DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=collate_batch )
 
     # Validation
-    valid_seqs = ggen.generate( 20 )
+    valid_seqs = ggen.generate( 8 )
     valid_ds = SequenceDataset( valid_seqs )
     valid_dl = DataLoader( valid_ds, batch_size=bs, collate_fn=collate_batch )
 

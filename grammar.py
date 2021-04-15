@@ -89,7 +89,9 @@ class GrammarGen():
 
     def generate(self, n):
         ret = []
-        for _ in range(n):
+        count = 0
+        hashtrack = set()
+        while count < n:
             token = []
             current = 'START'
             while current != 'END':
@@ -99,7 +101,13 @@ class GrammarGen():
                 # Choose next
                 r = random.randint( 0, len( self.grammar[current] ) - 1 )
                 current = self.grammar[current][r]
-            ret.append( ( 1, token, ) )
+            # Check if seq is already inside
+            tokenhash = ''.join( [ str(x) for x in token ] )
+            if tokenhash not in hashtrack:
+                hashtrack.add( tokenhash )
+                ret.append( ( 1, token, ) )
+                count += 1
+
         return ret
 
     def seqs2stim(self, seqs):
@@ -213,7 +221,7 @@ def get_trainstimuliExtendedSequence():
 def get_correctStimuliSequence():
     return [
         ( 1, ['A','C','F','C','G'], ),
-        ( 1, ['A','D','C','F','G'], ),
+        ( 1, ['A','D','C','F','C'], ),
         ( 1, ['A','C','G','F','C'], ),
         ( 1, ['A','D','C','G','F'], ),
     ]
