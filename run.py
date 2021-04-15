@@ -5,11 +5,9 @@ from grammar import *
 
 def main():
 
-    FILENAME = 'models/aEv1-100-5-3.pt'
+    LOADNAME = 'models/aEv1-100-5-3.pt'
     bs = 3
-    epochs = 5000
     lr = 0.0001                         # Learning rate
-    teacher_forcing_ratio = 0.5         # How much teacher_forcing
     use_embedding = True                # Embedding Yes/No
     hidden_dim = 5                      # Lstm Neurons
     intermediate_dim = 100              # Intermediate Layer Neurons
@@ -28,7 +26,7 @@ def main():
     train_dl = DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=collate_batch )
 
     # Validation
-    valid_seqs = ggen.generate( 20 )
+    valid_seqs = ggen.generate( 12 )
     valid_ds = SequenceDataset( valid_seqs )
     valid_dl = DataLoader( valid_ds, batch_size=bs, collate_fn=collate_batch )
 
@@ -45,7 +43,7 @@ def main():
 
     ### Load Model
     model, _ = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding )
-    model.load_state_dict( torch.load( FILENAME ) )
+    model.load_state_dict( torch.load( LOADNAME ) )
 
 
     ### Test
