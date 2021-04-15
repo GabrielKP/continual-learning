@@ -5,7 +5,7 @@ from grammar import *
 
 def main():
 
-    LOADNAME = 'models/aEv1-100-5-3.pt'
+    LOADNAME = 'models/last-training.pt'
     bs = 3
     lr = 0.0001                         # Learning rate
     use_embedding = True                # Embedding Yes/No
@@ -51,7 +51,7 @@ def main():
     visual_eval( model, train_dl )
     print( evaluate( model, loss_func, train_dl ) )
 
-    print( '\Validation' )
+    print( '\nValidation' )
     visual_eval( model, valid_dl )
     print( evaluate( model, loss_func, valid_dl ) )
 
