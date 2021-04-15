@@ -1,4 +1,8 @@
 # Grammar & Datasets
+# TODO: random sequence generation, filter ungrammatical and create arbitrary testset of ungrammatical seqs
+# TODO: unconstraint max length
+# TODO: grammaticality loss fix
+# TODO: run training without validation set
 
 import random
 import torch

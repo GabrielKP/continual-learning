@@ -440,11 +440,5 @@ def main():
     print( evaluate( model, loss_func, test_incorrect_dl ) )
 
 
-def othermain():
-
-    ggen = GrammarGen()
-    loss = SequenceLoss( ggen, ignore_index=PAD_TOKEN, grammaticality_bias=1 )
-
-
 if __name__ == '__main__':
     main()
