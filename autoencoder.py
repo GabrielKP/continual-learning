@@ -310,7 +310,6 @@ class SequenceLoss():
             for stimB in stimBs:
                 self.grammaticalityMatrix[stimA, stimB] = 0
 
-        print( self.grammaticalityMatrix )
         self.grammaticality_indices = self.grammaticalityMatrix == 1
 
 
@@ -318,74 +317,63 @@ class SequenceLoss():
 
         bs = len( outputs )
 
-        loss = torch.zeros( bs )
+        CEloss = torch.zeros( bs )
+        GRloss = torch.zeros( bs )
 
         for b in range(bs):
 
+            # Cross Entropy loss
             CEOutput = outputs[b]
-            CELabel = labels[b][1:].type( torch.long )
+            CELabel = labels[b][1:].type( torch.long )  # Cut off starting token and conver to long
 
-            loss[b] = self.CEloss( CEOutput, CELabel )
+            CEloss[b] = self.CEloss( CEOutput, CELabel )
 
-        return loss.mean()
+            # Grammaticality
+            output = softmax( outputs[b] )
+            label = labels[b][1:]
 
-        # ## print( "BOSD", vocab_size )
-        # # print( outputs )
+            seq_length = output.size(0)
 
-        # # Convert to probabilities
-        # outputs = softmax( outputs )
+            seq_loss = torch.empty( seq_length )
 
-        # # print( outputs )
-        # # print( labels )
 
-        # loss = torch.zeros( ( bs, seqlength - 1 ) )
+            # Judge pairwise grammaticality of prediction A -> prediction B in stimulus sequence
+            for i in range( seq_length - 1 ):
 
-        # # test = torch.zeros( ( vocab_size ) )
-        # # test[6] = 1.0
-        # # test[7] = 1.0
+                if label[i] == self.ignore_index:
+                    continue
 
-        # # Judge grammaticality
-        # for batch in range( bs ):
+                # Get rid of the gradient (no_grad did not work :( )
+                predA = torch.tensor( output[i].unsqueeze(0).transpose( 0, 1 ).tolist() )
+                predB = output[i + 1].unsqueeze(0)
+                transitionMatrix = torch.matmul( predA, predB )
 
-        #     seq = outputs[batch]
+                errorvalues = transitionMatrix[self.grammaticality_indices]
 
-        #     # seq = torch.tensor(
-        #     #     [[0, 1, 0, 0, 0, 0, 0, 0],
-        #     #     [0, 0, 0, 1, 0, 0, 0, 0],
-        #     #     [1.6311e-06, 9.4581e-07, 2.9531e-05, 7.9313e-07, 4.9984e-01, 1.8668e-04, 9.9475e-07, 4.9994e-01],
-        #     #     [1.6311e-06, 9.4579e-07, 2.9530e-05, 7.9310e-07, 4.9984e-01, 1.8668e-04, 9.9473e-07, 4.9994e-01],
-        #     #     [1.6311e-06, 9.4579e-07, 2.9530e-05, 7.9310e-07, 4.9984e-01, 1.8668e-04, 9.9473e-07, 4.9994e-01]])
-        #     # print( "seq" )
-        #     # print( seq )
-        #     # Compare stimuli pairwise
-        #     for i in range( seqlength - 1 ):
+                seq_loss[i] = ( errorvalues.sum() * self.punishment ).pow( 2 )
 
-        #         # loss[batch, i] = (seq[i] * test).sum()
-        #         # continue
+            GRloss[b] = seq_loss.mean()
 
-        #         # if sequence ended, then ignore
-        #         if labels[batch,i] == self.ignore_index:
-        #             break
-
-        #         prev =  torch.tensor( seq[i].unsqueeze(0).transpose( 0, 1 ).tolist() )
-
-        #         transitionMatrix = torch.matmul( prev, seq[i + 1].unsqueeze(0) )
-
-        #         #print( transitionMatrix )
-
-        #         errorMatrix = transitionMatrix[self.grammaticality_indices]
-
-        #         # print( errorMatrix )
-        #         # print( errorMatrix.sum() )
-
-        #         loss[batch, i] = ( errorMatrix.sum() * self.punishment ).pow(2)
-
-        return self.CEloss( CEOutputs, CELabels )
-        return loss.mean() * self.gbias + self.CEloss( CEOutputs, CELabels ) * ( 1 - self.gbias )
+        return GRloss.mean() * self.gbias + CEloss.mean() * ( 1 - self.gbias )
 
 
 def main():
     bs = 3
+    epochs = 5000
+    lr = 0.0001
+    teacher_forcing_ratio = 0.5
+    use_embedding = True
+    hidden_dim = 5
+    intermediate_dim = 100
+    n_layers = 3
+    dropout = 0.5
+    start_from_scratch = False
+    grammaticality_bias = 0
+    punishment = 1
+    # 4.pt 200 5 3
+    # 5.pt 100 5 3
+    LOADNAME = 'models/aEv1-100-5-3.pt'
+    SAVENAME = 'models/last-training.pt'
     # Grammar
     ggen = GrammarGen()
 
@@ -410,23 +398,7 @@ def main():
     test_incorrect_ds = SequenceDataset( test_incorrect_seqs )
     test_incorrect_dl = DataLoader( test_incorrect_ds, batch_size=bs * 2, collate_fn=collate_batch )
 
-    # Misc parameters
-    # dropout?
-    epochs = 5000
-    lr = 0.0001
-    teacher_forcing_ratio = 0.5
-    use_embedding = True
-    hidden_dim = 5
-    intermediate_dim = 100
-    n_layers = 3
-    dropout = 0.5
-    start_from_scratch = False
     input_dim = len( ggen )
-    # 4.pt 200 3
-    # 5.pt 100 3 5
-    LOADNAME = 'models/aEv1-100-5-3.pt'
-    SAVENAME = 'models/last-training.pt'
-    # torch.autograd.set_detect_anomaly(True)
 
     # Get Model
     model, opt = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding )
@@ -435,7 +407,7 @@ def main():
 
     # Loss Function
     # loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN, reduction='sum' )
-    loss_func = SequenceLoss( ggen, ignore_index=PAD_TOKEN, grammaticality_bias=0, punishment=1 )
+    loss_func = SequenceLoss( ggen, ignore_index=PAD_TOKEN, grammaticality_bias=grammaticality_bias, punishment=punishment )
 
     # Train
     fit( epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio, SAVENAME )
