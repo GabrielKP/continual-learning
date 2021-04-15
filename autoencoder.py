@@ -288,7 +288,7 @@ def softmax( x ):
 
 class SequenceLoss():
 
-    def __init__(self, grammarGen: GrammarGen, ignore_index=None, grammaticality_bias=0.5, punishment=1):
+    def __init__(self, grammarGen: GrammarGen, ignore_index=-1, grammaticality_bias=0.5, punishment=1):
         self.ggen = grammarGen
         self.gbias = grammaticality_bias
         self.number_grammar = grammarGen.number_grammar
@@ -417,30 +417,31 @@ def main():
     teacher_forcing_ratio = 0.5
     use_embedding = True
     hidden_dim = 5
-    intermediate_dim = 200
-    n_layers = 4
+    intermediate_dim = 100
+    n_layers = 3
     dropout = 0.5
-    start_from_scratch = True
+    start_from_scratch = False
     input_dim = len( ggen )
     # 4.pt 200 3
     # 5.pt 100 3 5
-    FILENAME = 'autoEncoder-5.pt'
+    LOADNAME = 'models/aEv1-100-5-3.pt'
+    SAVENAME = 'models/last-training.pt'
     # torch.autograd.set_detect_anomaly(True)
 
     # Get Model
     model, opt = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding )
     if  not start_from_scratch:
-        model.load_state_dict( torch.load( FILENAME ) )
+        model.load_state_dict( torch.load( LOADNAME ) )
 
     # Loss Function
     # loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN, reduction='sum' )
     loss_func = SequenceLoss( ggen, ignore_index=PAD_TOKEN, grammaticality_bias=0, punishment=1 )
 
     # Train
-    fit( epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio, FILENAME )
+    fit( epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio, SAVENAME )
 
     # Load best model
-    model.load_state_dict( torch.load( FILENAME ) )
+    model.load_state_dict( torch.load( SAVENAME ) )
 
     # for labels, seqs in train_dl:
     #     labels = nn.utils.rnn.pad_sequence( seqs, batch_first=True, padding_value=PAD_TOKEN ).type( torch.long )
