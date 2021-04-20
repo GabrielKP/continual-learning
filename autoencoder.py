@@ -366,10 +366,10 @@ class SequenceLoss():
 
 def main():                     # Best values so far
     bs = 4                      # 4
-    epochs = 800                # 800
+    epochs = 800                # 800 / 2000 for 1 layer
     lr = 0.01                   # 0.1
     teacher_forcing_ratio = 0.5 # 0.5
-    use_embedding = True       # True
+    use_embedding = True        # True
     bidirectional = True        # True
     hidden_dim = 3              # 3
     intermediate_dim = 200      # 200
