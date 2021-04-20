@@ -327,6 +327,8 @@ class SequenceLoss():
             CELabel = labels[b][1:].type( torch.long )  # Cut off starting token and conver to long
 
             CEloss[b] = self.CEloss( CEOutput, CELabel )
+            if self.gbias == 0:
+                continue
 
             # Grammaticality
             output = softmax( outputs[b] )
@@ -353,6 +355,9 @@ class SequenceLoss():
                 seq_loss[i] = ( errorvalues.sum() * self.punishment ).pow( 2 )
 
             GRloss[b] = seq_loss.mean()
+
+        if self.gbias == 0:
+            return CEloss.mean()
 
         return GRloss.mean() * self.gbias + CEloss.mean() * ( 1 - self.gbias )
 
