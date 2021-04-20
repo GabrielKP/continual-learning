@@ -5,14 +5,14 @@ from grammar import *
 
 def main():
 
-    LOADNAME = 'models/last-training3.pt'
-    bs = 3
+    LOADNAME = 'models/aEv4-bi-200-1-3.pt'
+    bs = 4
     lr = 0.0001                         # Learning rate
     use_embedding = True                # Embedding Yes/No
     bidirectional = True                # bidirectional lstm layer Yes/o
-    hidden_dim = 5                      # Lstm Neurons
-    intermediate_dim = 100              # Intermediate Layer Neurons
-    n_layers = 3                        # Lstm Layers
+    hidden_dim = 3                      # Lstm Neurons
+    intermediate_dim = 200              # Intermediate Layer Neurons
+    n_layers = 1                        # Lstm Layers
     dropout = 0.5
     ggen = GrammarGen()                 # Grammar
     input_dim = len( ggen )

@@ -369,13 +369,13 @@ def main():                     # Best values so far
     epochs = 800                # 800
     lr = 0.01                   # 0.1
     teacher_forcing_ratio = 0.5 # 0.5
-    use_embedding = True        # True
+    use_embedding = True       # True
     bidirectional = True        # True
-    hidden_dim = 5
+    hidden_dim = 3              # 3
     intermediate_dim = 200      # 200
-    n_layers = 3
+    n_layers = 1                # 1
     dropout = 0.5
-    start_from_scratch = True
+    start_from_scratch = False
     grammaticality_bias = 0
     punishment = 1
     # 4.pt 200 5 3
