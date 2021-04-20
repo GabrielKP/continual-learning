@@ -18,7 +18,7 @@ CLIP = 0.5
 
 class Encoder(nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, intermediate_dim, n_layers, dropout, embedding=True ):
+    def __init__(self, input_dim, hidden_dim, intermediate_dim, n_layers, dropout, embedding=True, bidirectional=False ):
         super(Encoder, self).__init__()
 
         # Vars
@@ -27,13 +27,14 @@ class Encoder(nn.Module):
         self.embedding_dim = input_dim
         self.n_layers = n_layers
         self.intermediate_dim = intermediate_dim
+        self.bidirectional = bidirectional
 
         # Layers
         self.embed = nn.Embedding( self.input_dim, self.embedding_dim )
         if not embedding:
             self.embed.weight.data = torch.eye( input_dim )
 
-        self.lstm = nn.LSTM( self.intermediate_dim, self.hidden_dim, n_layers, batch_first=True )
+        self.lstm = nn.LSTM( self.intermediate_dim, self.hidden_dim, n_layers, batch_first=True, bidirectional=self.bidirectional )
 
         self.fc_one = nn.Linear( self.embedding_dim, self.intermediate_dim )
 
@@ -67,7 +68,7 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self, output_dim, hidden_dim, intermediate_dim, n_layers, dropout, embedding=True ):
+    def __init__(self, output_dim, hidden_dim, intermediate_dim, n_layers, dropout, embedding=True, bidirectional=False ):
         super(Decoder, self).__init__()
 
         # Vars
@@ -76,17 +77,18 @@ class Decoder(nn.Module):
         self.embedding_dim = output_dim
         self.n_layers = n_layers
         self.intermediate_dim = intermediate_dim
+        self.bidirectional = bidirectional
 
         # Layers
         self.embed = nn.Embedding( self.output_dim, self.embedding_dim )
         if not embedding:
             self.embed.weight.data = torch.eye( self.embedding_dim )
 
-        self.lstm = nn.LSTM( self.embedding_dim, self.hidden_dim, self.n_layers, batch_first=True )
+        self.lstm = nn.LSTM( self.embedding_dim, self.hidden_dim, self.n_layers, batch_first=True, bidirectional=True )
 
         self.fc_out = nn.Linear( intermediate_dim, output_dim )
 
-        self.fc_one = nn.Linear( hidden_dim, intermediate_dim )
+        self.fc_one = nn.Linear( hidden_dim + hidden_dim * bidirectional, intermediate_dim )
 
         self.ac_one = nn.ReLU()
 
@@ -167,10 +169,10 @@ def count_parameters(model):
     return sum( p.numel() for p in model.parameters() if p.requires_grad )
 
 
-def get_model(input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding=True):
+def get_model(input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, bidirectional, use_embedding=True):
 
-    encoder = Encoder( input_dim, hidden_dim, intermediate_dim, n_layers, dropout, use_embedding )
-    decoder = Decoder( input_dim, hidden_dim, intermediate_dim, n_layers, dropout, use_embedding )
+    encoder = Encoder( input_dim, hidden_dim, intermediate_dim, n_layers, dropout, use_embedding, bidirectional )
+    decoder = Decoder( input_dim, hidden_dim, intermediate_dim, n_layers, dropout, use_embedding, bidirectional )
 
     model = AutoEncoder( encoder, decoder )
     print( model.apply( init_weights ) )
@@ -362,23 +364,24 @@ class SequenceLoss():
         return GRloss.mean() * self.gbias + CEloss.mean() * ( 1 - self.gbias )
 
 
-def main():
-    bs = 3
-    epochs = 3000
-    lr = 0.001
-    teacher_forcing_ratio = 0.5
-    use_embedding = True
+def main():                     # Best values so far
+    bs = 4                      # 4
+    epochs = 800                # 800
+    lr = 0.01                   # 0.1
+    teacher_forcing_ratio = 0.5 # 0.5
+    use_embedding = True        # True
+    bidirectional = True        # True
     hidden_dim = 5
-    intermediate_dim = 100
+    intermediate_dim = 200      # 200
     n_layers = 3
     dropout = 0.5
-    start_from_scratch = False
+    start_from_scratch = True
     grammaticality_bias = 0
     punishment = 1
     # 4.pt 200 5 3
     # 5.pt 100 5 3
-    LOADNAME = 'models/last-training.pt'
-    SAVENAME = 'models/last-training.pt'
+    LOADNAME = 'models/last-training1.pt'
+    SAVENAME = 'models/last-training1.pt'
     # Grammar
     ggen = GrammarGen()
 
@@ -406,7 +409,7 @@ def main():
     input_dim = len( ggen )
 
     # Get Model
-    model, opt = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding )
+    model, opt = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding, bidirectional )
     if  not start_from_scratch:
         model.load_state_dict( torch.load( LOADNAME ) )
 

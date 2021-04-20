@@ -5,10 +5,11 @@ from grammar import *
 
 def main():
 
-    LOADNAME = 'models/last-training.pt'
+    LOADNAME = 'models/last-training3.pt'
     bs = 3
     lr = 0.0001                         # Learning rate
     use_embedding = True                # Embedding Yes/No
+    bidirectional = True                # bidirectional lstm layer Yes/o
     hidden_dim = 5                      # Lstm Neurons
     intermediate_dim = 100              # Intermediate Layer Neurons
     n_layers = 3                        # Lstm Layers
@@ -42,7 +43,7 @@ def main():
 
 
     ### Load Model
-    model, _ = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding )
+    model, _ = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding, bidirectional )
     model.load_state_dict( torch.load( LOADNAME ) )
 
 
