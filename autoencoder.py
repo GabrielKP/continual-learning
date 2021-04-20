@@ -359,8 +359,8 @@ class SequenceLoss():
 
 def main():
     bs = 3
-    epochs = 5000
-    lr = 0.0001
+    epochs = 3000
+    lr = 0.001
     teacher_forcing_ratio = 0.5
     use_embedding = True
     hidden_dim = 5
@@ -372,7 +372,7 @@ def main():
     punishment = 1
     # 4.pt 200 5 3
     # 5.pt 100 5 3
-    LOADNAME = 'models/aEv1-100-5-3.pt'
+    LOADNAME = 'models/last-training.pt'
     SAVENAME = 'models/last-training.pt'
     # Grammar
     ggen = GrammarGen()
@@ -410,7 +410,7 @@ def main():
     loss_func = SequenceLoss( ggen, ignore_index=PAD_TOKEN, grammaticality_bias=grammaticality_bias, punishment=punishment )
 
     # Train
-    fit( epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio, SAVENAME )
+    fit( epochs, model, loss_func, opt, train_dl, train_dl, teacher_forcing_ratio, SAVENAME )
 
     # Load best model
     model.load_state_dict( torch.load( SAVENAME ) )
