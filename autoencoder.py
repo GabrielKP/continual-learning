@@ -169,7 +169,7 @@ def count_parameters(model):
     return sum( p.numel() for p in model.parameters() if p.requires_grad )
 
 
-def get_model(input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, bidirectional, use_embedding=True):
+def get_model(input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding=True, bidirectional=False):
 
     encoder = Encoder( input_dim, hidden_dim, intermediate_dim, n_layers, dropout, use_embedding, bidirectional )
     decoder = Decoder( input_dim, hidden_dim, intermediate_dim, n_layers, dropout, use_embedding, bidirectional )
