@@ -125,11 +125,18 @@ class GrammarGen():
         pass
 
 
-def createShiftedGrammar():
+def shiftStimuli( ggen, seqs ):
     """
     Creates shifted grammar
     """
-    pass
+    vocab_without_TOKENS = len( ggen ) - 3
+    new_vocab_size = 2 * vocab_without_TOKENS # PADTOKEN;STARTTOKEN;ENDTOKEN;
+
+    shifted_seqs = []
+    for _, seq in seqs:
+        shifted_seqs.append( (1, [ stim + vocab_without_TOKENS for stim in seq if stim not in [ PAD_TOKEN, START_TOKEN, END_TOKEN ] ] ) )
+
+    return shifted_seqs, new_vocab_size
 
 
 class SequenceDataset( Dataset ):
