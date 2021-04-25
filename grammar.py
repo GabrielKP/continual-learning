@@ -125,6 +125,12 @@ class GrammarGen():
         pass
 
 
+def createShiftedGrammar():
+    """
+    Creates shifted grammar
+    """
+    pass
+
 
 class SequenceDataset( Dataset ):
     """
