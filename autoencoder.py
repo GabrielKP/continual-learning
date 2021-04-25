@@ -4,6 +4,7 @@ import time
 import random
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
 from torch.utils.data.dataloader import DataLoader
 
 from grammar import GrammarGen, START_TOKEN, SequenceDataset, collate_batch, get_correctStimuliSequence, get_incorrectStimuliSequence, get_trainstimuliSequence, get_teststimuliSequence
@@ -243,6 +244,8 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
     """ Fits model on train data, printing val and train loss"""
 
     best_val_loss = float('inf')
+    hist_valid = torch.empty( epochs )
+    hist_train = torch.empty( epochs )
 
     for epoch in range(epochs):
 
@@ -259,8 +262,12 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
 
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
+        hist_train[epoch] = train_loss
+        hist_valid[epoch] = valid_loss
         print(f'Epoch: {epoch+1:03} | Time: {epoch_mins}m {epoch_secs:.2}s')
         print(f'\tTrain Loss: {train_loss:.5f} |  Val. Loss: {valid_loss:.5f}')
+
+    return hist_train, hist_valid
 
 
 def cutStartAndEndToken(seq):
@@ -364,9 +371,20 @@ class SequenceLoss():
         return GRloss.mean() * self.gbias + CEloss.mean() * ( 1 - self.gbias )
 
 
+def plotHist( *hist_tuples, stepsize=5 ):
+    labels = []
+    #colors = ['blue', 'or']
+    for history, label in hist_tuples:
+        xvals = range( 0, history.size(0), stepsize )
+        plt.plot( xvals, history[xvals] )
+        labels.append( label)
+    plt.legend( labels )
+    plt.show()
+
+
 def main():                     # Best values so far
     bs = 4                      # 4
-    epochs = 800                # 800 / 2000 for 1 layer
+    epochs = 200                # 800 / 2000 for 1 layer
     lr = 0.01                   # 0.1
     teacher_forcing_ratio = 0.5 # 0.5
     use_embedding = True        # True
@@ -375,7 +393,7 @@ def main():                     # Best values so far
     intermediate_dim = 200      # 200
     n_layers = 1                # 1
     dropout = 0.5
-    start_from_scratch = False
+    start_from_scratch = True
     grammaticality_bias = 0
     punishment = 1
     # 4.pt 200 5 3
@@ -418,21 +436,12 @@ def main():                     # Best values so far
     loss_func = SequenceLoss( ggen, ignore_index=PAD_TOKEN, grammaticality_bias=grammaticality_bias, punishment=punishment )
 
     # Train
-    fit( epochs, model, loss_func, opt, train_dl, train_dl, teacher_forcing_ratio, SAVENAME )
+    hist_train, hist_valid = fit( epochs, model, loss_func, opt, train_dl, train_dl, teacher_forcing_ratio, SAVENAME )
 
     # Load best model
     model.load_state_dict( torch.load( SAVENAME ) )
 
-    # for labels, seqs in train_dl:
-    #     labels = nn.utils.rnn.pad_sequence( seqs, batch_first=True, padding_value=PAD_TOKEN ).type( torch.long )
-
-    #     output = model( labels, seqs )
-
-    #     print( "output\n", output )
-    #     print( output.argmax(-1) )
-    #     print( loss_func( output[:,1:], labels[:,1:] ) )
-    #     break
-    # return
+    plotHist( ( hist_train, 'First', ), ( hist_valid, 'second') )
 
     # Test
     print( '\nTrain' )
