@@ -129,9 +129,9 @@ def shiftStimuli( ggen, seqs ):
     """
     Creates shifted grammar
     """
-    vocab_without_TOKENS = len( ggen ) - 3
-    new_vocab_size = 2 * vocab_without_TOKENS # PADTOKEN;STARTTOKEN;ENDTOKEN;
+    new_vocab_size = 2 * len( ggen ) - 3 # PADTOKEN;STARTTOKEN;ENDTOKEN;
 
+    vocab_without_TOKENS = len( ggen ) - 3
     shifted_seqs = []
     for _, seq in seqs:
         shifted_seqs.append( (1, [ stim + vocab_without_TOKENS for stim in seq if stim not in [ PAD_TOKEN, START_TOKEN, END_TOKEN ] ] ) )
@@ -194,6 +194,10 @@ def collate_batch(batch):
 #     label_list = torch.tensor( label_list, dtype=torch.float )
 #     seq_list = nn.utils.rnn.pad_sequence( seq_list, batch_first=True )
 #     return label_list.to( device ), seq_list
+
+def get_dl(bs, sequences, shuffle=True):
+    train_ds = SequenceDataset( sequences )
+    return DataLoader( train_ds, batch_size=bs, shuffle=shuffle, collate_fn=collate_batch )
 
 
 def get_data(train_ds, valid_ds, bs):

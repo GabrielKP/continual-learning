@@ -240,12 +240,48 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 
-def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5, FILENAME='aa'):
-    """ Fits model on train data, printing val and train loss"""
+def cutStartAndEndToken(seq):
+    ret = []
+    for stim in seq:
+        if stim == END_TOKEN:
+            break
+        ret.append( stim )
+    return ret
+
+
+def evaluate_whole(model, test_dl):
+    model.eval()
+    ret = []
+    with torch.no_grad():
+        for labels, seqs in test_dl:
+            output = model( labels, seqs, teacher_forcing_ratio=0 )
+            for b, seq in enumerate( seqs ):
+                prediction = output[b].argmax(-1)
+                trgtlist = seq.tolist()[1:-1]
+                predlist = cutStartAndEndToken( prediction.tolist() )
+                ret.append( not predlist == trgtlist )
+
+    return sum( ret )
+
+
+def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5, FILENAME='aa', check_dls=None):
+    """
+    Fits model on train data, printing val and train loss
+
+    check_dls : list of tuples: (dataloader, evaluation_function)
+        when given as argument, in every epoch every dataloader
+        will be evaluted with its evaluation function.
+        If given fit returns additional list with tensors containing
+        evaluation results for every epoch
+    """
 
     best_val_loss = float('inf')
     hist_valid = torch.empty( epochs )
     hist_train = torch.empty( epochs )
+    if check_dls is not None:
+        hist_check = []
+        for _ in range( len( check_dls ) ):
+            hist_check.append( torch.empty( epochs ) )
 
     for epoch in range(epochs):
 
@@ -267,16 +303,13 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
         print(f'Epoch: {epoch+1:03} | Time: {epoch_mins}m {epoch_secs:.2}s')
         print(f'\tTrain Loss: {train_loss:.5f} |  Val. Loss: {valid_loss:.5f}')
 
-    return hist_train, hist_valid
+        if check_dls is not None:
+            for i, ( dl, eval ) in enumerate( check_dls ):
+                hist_check[i][epoch] = eval( model, dl )
 
-
-def cutStartAndEndToken(seq):
-    ret = []
-    for stim in seq:
-        if stim == END_TOKEN:
-            break
-        ret.append( stim )
-    return ret
+    if check_dls is None:
+        return hist_train, hist_valid
+    return hist_train, hist_valid, check_dls
 
 
 def visual_eval(model, test_dl):
