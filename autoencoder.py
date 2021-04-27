@@ -259,6 +259,40 @@ def allOrNoneloss( output, labels ):
     return torch.tensor( sum( ret ) )
 
 
+def setParamaterGrad( model, conditions, setvalue):
+    for name, param in model.named_parameters():
+        # Check every condition
+        for condition in conditions:
+            # check every keyword
+            allincluded = True
+            for keyword in condition:
+                if keyword not in name:
+                    allincluded = False
+                    break
+            if allincluded:
+                param.requires_grad = setvalue
+
+
+def freezeParameters( model, conditions ):
+    """
+    conditions is a tuple of tuples (condition):
+    ( ( keyword1 AND keyword2 AND ... ) OR ( keyword3 AND ... ) OR ... )
+    a condition is multiple keywords which need to be in the parameter name
+    to freeze the parameter
+    """
+    setParamaterGrad( model, conditions, False )
+
+
+def unfreezeParameters( model, conditions ):
+    """
+    conditions is a tuple of tuples (condition):
+    ( ( keyword1 AND keyword2 AND ... ) OR ( keyword3 AND ... ) OR ... )
+    a condition is multiple keywords which need to be in the parameter name
+    to freeze the parameter
+    """
+    setParamaterGrad( model, conditions, True )
+
+
 def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5, FILENAME='aa', check_dls=None):
     """
     Fits model on train data, printing val and train loss
