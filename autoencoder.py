@@ -454,7 +454,7 @@ def plotMultipleHist( hist_tensors, labels, stepsize=5 ):
     n_lines = len( hist_tensors )
     fig = plt.figure()
     for x in range( n_figs ):
-        ax = fig.add_subplot( 2, n_figs// 2, x + 1 )
+        ax = fig.add_subplot( n_figs// 2, 2, x + 1 )
         for m in range( n_lines ):
             xvals = range( 0, hist_tensors[m][x].size(0), stepsize )
             ax.plot( xvals, hist_tensors[m][x][xvals]  )
