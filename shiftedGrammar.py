@@ -16,7 +16,7 @@ def main():                     # Best values so far
     start_from_scratch = True
     grammaticality_bias = 0
     punishment = 1
-    conditions = ( ('encoder', ), )
+    conditions = ( ( 'fc_one', ), ( 'decoder', ) )
 
     LOADNAME = 'models/last-training_shifted.pt'
     SAVENAME = 'models/last-training_shifted.pt'
@@ -71,24 +71,12 @@ def main():                     # Best values so far
 
     # Freeze Parameters
     freezeParameters( model, conditions )
-    # New optimizer
+    # New optimizer (if not because of internal states it keeps updating old params)
     opt = optim.AdamW( filter(lambda p: p.requires_grad, model.parameters()), lr=lr )
-    paramsum = 0
-    for param in model.parameters():
-        if param.requires_grad == False:
-            paramsum += param.abs().sum()
 
     # Train on shifted
     _, hist_valid2, hist_check_dls2 = fit( epochs, model, loss_func, opt, train_shift_dl, train_shift_dl, teacher_forcing_ratio, SAVENAME, check_dls2 )
 
-    nparamsum = 0
-    for param in model.parameters():
-        if param.requires_grad == False:
-            nparamsum += param.abs().sum()
-    print( paramsum, nparamsum )
-
-    # plotHist( ( hist_valid1, 'Normal', ), ( hist_valid2, 'Shifted', ) )
-    # plotHist( ( hist_test1, 'Normal', ), ( hist_test2, 'Shifted', ) )
     labels = ( "Normal", "Shifted", )
     stepsize = 5
     plotMultipleHist( ( hist_check_dls1, hist_check_dls2 ), labels, stepsize )
