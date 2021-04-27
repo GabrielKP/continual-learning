@@ -16,7 +16,8 @@ def main():                     # Best values so far
     start_from_scratch = True
     grammaticality_bias = 0
     punishment = 1
-    conditions = ( ( 'fc_one', ), ( 'decoder', ) )
+    conditions = ( ( 'fc_one', ), ( 'fc_out', ) )
+    invertCondition = True
 
     LOADNAME = 'models/last-training_shifted.pt'
     SAVENAME = 'models/last-training_shifted.pt'
@@ -70,7 +71,8 @@ def main():                     # Best values so far
     model.load_state_dict( torch.load( SAVENAME ) )
 
     # Freeze Parameters
-    freezeParameters( model, conditions )
+    freezeParameters( model, conditions, invertCondition )
+
     # New optimizer (if not because of internal states it keeps updating old params)
     opt = optim.AdamW( filter(lambda p: p.requires_grad, model.parameters()), lr=lr )
 
