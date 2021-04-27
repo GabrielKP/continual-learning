@@ -415,6 +415,24 @@ def plotHist( *hist_tuples, stepsize=5 ):
     plt.show()
 
 
+def plotMultipleHist( hist_tensors, labels, stepsize=5 ):
+    """
+    hist_tensors expected in following form:
+    [ [label1_plotdata1, label1_plotdata2, ...], [ label2_plotdata1, label2_plotdata2, ... ], ...]
+    """
+    assert len( hist_tensors ) == len( labels ), "labels and different plots do not match"
+    n_figs = len( hist_tensors[0] )
+    n_lines = len( hist_tensors )
+    fig = plt.figure()
+    for x in range( n_figs ):
+        ax = fig.add_subplot( 1, n_figs, x )
+        for m in range( n_lines ):
+            xvals = range( 0, hist_tensors[m][x].size(0), stepsize )
+            ax.plot( xvals, hist_tensors[m][x][xvals]  )
+    ax.legend( labels )
+    plt.show()
+
+
 def main():                     # Best values so far
     bs = 4                      # 4
     epochs = 200                # 800 / 2000 for 1 layer
