@@ -35,13 +35,14 @@ class Encoder(nn.Module):
         if not embedding:
             self.embed.weight.data = torch.eye( input_dim )
 
-        self.lstm = nn.LSTM( self.intermediate_dim, self.hidden_dim, n_layers, batch_first=True, bidirectional=self.bidirectional )
+        self.dropout = nn.Dropout( dropout )
 
         self.fc_one = nn.Linear( self.embedding_dim, self.intermediate_dim )
 
         self.ac_one = nn.ReLU()
 
-        self.dropout = nn.Dropout( dropout )
+        self.lstm = nn.LSTM( self.intermediate_dim, self.hidden_dim, n_layers, batch_first=True, bidirectional=self.bidirectional )
+
 
     def forward(self, seqs):
 
