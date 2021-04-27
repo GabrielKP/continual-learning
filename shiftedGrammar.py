@@ -46,7 +46,7 @@ def main():                     # Best values so far
 
     # Test shifted - Incorrect
     test_incorrect_shift_seqs, _ = shiftStimuli( ggen, test_incorrect_seqs )
-    test_shift_dl = get_dl( bs * 2, test_incorrect_shift_seqs, False )
+    test_incorrect_shift_dl = get_dl( bs * 2, test_incorrect_shift_seqs, False )
 
     input_dim = shifted_length
 
