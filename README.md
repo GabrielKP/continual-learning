@@ -112,3 +112,38 @@ S -> AP + CP + FP
 AP -> A2 + (D2)
 CP -> C2 + (G2)
 FP -> F2 + (CP)
+
+## Model architecture
+
+### Encoder
+ Input -> Embedding -> Dropout -> fc_one -> ReLU -> dropout -> LSTM -> Hidden
+
+### Decoder (single token decoder)
+                            Hidden -> \
+ PrevToken -> Embedding -> Dropout -> LSTM -> fc_one -> ReLU -> dropout -> fc_out -> Output/Hidden
+## Model parameters
+
+encoder.embed.weight
+encoder.lstm.weight_ih_l0
+encoder.lstm.weight_hh_l0
+encoder.lstm.bias_ih_l0
+encoder.lstm.bias_hh_l0
+encoder.lstm.weight_ih_l0_reverse
+encoder.lstm.weight_hh_l0_reverse
+encoder.lstm.bias_ih_l0_reverse
+encoder.lstm.bias_hh_l0_reverse
+encoder.fc_one.weight
+encoder.fc_one.bias
+decoder.embed.weight
+decoder.lstm.weight_ih_l0
+decoder.lstm.weight_hh_l0
+decoder.lstm.bias_ih_l0
+decoder.lstm.bias_hh_l0
+decoder.lstm.weight_ih_l0_reverse
+decoder.lstm.weight_hh_l0_reverse
+decoder.lstm.bias_ih_l0_reverse
+decoder.lstm.bias_hh_l0_reverse
+decoder.fc_out.weight
+decoder.fc_out.bias
+decoder.fc_one.weight
+decoder.fc_one.bias
