@@ -249,28 +249,23 @@ def cutStartAndEndToken(seq):
     return ret
 
 
-def evaluate_whole(model, test_dl):
-    model.eval()
+def allOrNoneloss( output, labels ):
     ret = []
-    with torch.no_grad():
-        for labels, seqs in test_dl:
-            output = model( labels, seqs, teacher_forcing_ratio=0 )
-            for b, seq in enumerate( seqs ):
-                prediction = output[b].argmax(-1)
-                trgtlist = seq.tolist()[1:-1]
-                predlist = cutStartAndEndToken( prediction.tolist() )
-                ret.append( not predlist == trgtlist )
-
-    return sum( ret )
+    for b, seq in enumerate( labels ):
+        prediction = output[b].argmax(-1)
+        trgtlist = seq.tolist()[1:-1]
+        predlist = cutStartAndEndToken( prediction.tolist() )
+        ret.append( not predlist == trgtlist )
+    return torch.tensor( sum( ret ) )
 
 
 def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5, FILENAME='aa', check_dls=None):
     """
     Fits model on train data, printing val and train loss
 
-    check_dls : list of tuples: (dataloader, evaluation_function)
+    check_dls : list of tuples: (dataloader, loss_function)
         when given as argument, in every epoch every dataloader
-        will be evaluted with its evaluation function.
+        will be evaluted with its loss function.
         If given fit returns additional list with tensors containing
         evaluation results for every epoch
     """
@@ -304,12 +299,12 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
         print(f'\tTrain Loss: {train_loss:.5f} |  Val. Loss: {valid_loss:.5f}')
 
         if check_dls is not None:
-            for i, ( dl, eval ) in enumerate( check_dls ):
-                hist_check[i][epoch] = eval( model, dl )
+            for i, ( dl, dl_loss_func ) in enumerate( check_dls ):
+                hist_check[i][epoch] = evaluate( model, dl_loss_func, dl )
 
     if check_dls is None:
         return hist_train, hist_valid
-    return hist_train, hist_valid, check_dls
+    return hist_train, hist_valid, hist_check
 
 
 def visual_eval(model, test_dl):
@@ -418,18 +413,19 @@ def plotHist( *hist_tuples, stepsize=5 ):
 def plotMultipleHist( hist_tensors, labels, stepsize=5 ):
     """
     hist_tensors expected in following form:
-    [ [label1_plotdata1, label1_plotdata2, ...], [ label2_plotdata1, label2_plotdata2, ... ], ...]
+    ( [label1_plotdata1, label1_plotdata2, ...], [ label2_plotdata1, label2_plotdata2, ... ], ...)
     """
     assert len( hist_tensors ) == len( labels ), "labels and different plots do not match"
     n_figs = len( hist_tensors[0] )
     n_lines = len( hist_tensors )
     fig = plt.figure()
     for x in range( n_figs ):
-        ax = fig.add_subplot( 1, n_figs, x )
+        ax = fig.add_subplot( 2, n_figs// 2, x + 1 )
         for m in range( n_lines ):
             xvals = range( 0, hist_tensors[m][x].size(0), stepsize )
             ax.plot( xvals, hist_tensors[m][x][xvals]  )
     ax.legend( labels )
+    fig.tight_layout()
     plt.show()
 
 

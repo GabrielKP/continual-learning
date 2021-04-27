@@ -50,6 +50,7 @@ def main():                     # Best values so far
 
     input_dim = shifted_length
 
+
     # Get Model
     model, opt = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding, bidirectional )
     if  not start_from_scratch:
@@ -58,17 +59,24 @@ def main():                     # Best values so far
     # Loss Function
     loss_func = SequenceLoss( ggen, ignore_index=PAD_TOKEN, grammaticality_bias=grammaticality_bias, punishment=punishment )
 
+    # Check_dls
+    check_dls1 = [ ( train_dl, loss_func, ), ( train_dl, allOrNoneloss, ), ( test_dl, loss_func, ), ( test_dl, allOrNoneloss, ) ]
+    check_dls2 = [ ( train_shift_dl, loss_func, ), ( train_shift_dl, allOrNoneloss, ), ( test_shift_dl, loss_func, ), ( test_shift_dl, allOrNoneloss, ) ]
+
     # Train
-    _, hist_valid1, hist_check_dls = fit( epochs, model, loss_func, opt, train_dl, train_dl, teacher_forcing_ratio, SAVENAME, test_dl )
+    _, hist_valid1, hist_check_dls1 = fit( epochs, model, loss_func, opt, train_dl, train_dl, teacher_forcing_ratio, SAVENAME, check_dls1 )
 
     # Load best model
     model.load_state_dict( torch.load( SAVENAME ) )
 
     # Train on shifted
-    _, hist_valid2, hist_test2 = fit( epochs, model, loss_func, opt, train_shift_dl, train_shift_dl, teacher_forcing_ratio, SAVENAME, test_shift_dl )
+    _, hist_valid2, hist_check_dls2 = fit( epochs, model, loss_func, opt, train_shift_dl, train_shift_dl, teacher_forcing_ratio, SAVENAME, check_dls2 )
 
     # plotHist( ( hist_valid1, 'Normal', ), ( hist_valid2, 'Shifted', ) )
     # plotHist( ( hist_test1, 'Normal', ), ( hist_test2, 'Shifted', ) )
+    labels = ("Normal", "Shifted")
+    stepsize = 5
+    plotMultipleHist( ( hist_check_dls1, hist_check_dls2 ), labels, stepsize )
 
     return
     # Test
