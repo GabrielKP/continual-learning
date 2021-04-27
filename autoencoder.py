@@ -435,6 +435,9 @@ class SequenceLoss():
 
 
 def plotHist( *hist_tuples, stepsize=5 ):
+    """
+    example: plotHist( ( hist_valid1, 'Normal', ), ( hist_valid2, 'Shifted', ) )
+    """
     labels = []
     #colors = ['blue', 'or']
     for history, label in hist_tuples:
