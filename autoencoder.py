@@ -260,7 +260,7 @@ def allOrNoneloss( output, labels ):
     return torch.tensor( sum( ret ) )
 
 
-def setParamaterGrad( model, conditions, setvalue):
+def setParamaterGrad( model, conditions, invertCondition, setvalue):
     for name, param in model.named_parameters():
         # Check every condition
         for condition in conditions:
@@ -272,26 +272,30 @@ def setParamaterGrad( model, conditions, setvalue):
                     break
             if allincluded:
                 param.requires_grad = setvalue
+    # Cheap solution but it works
+    if invertCondition:
+        for _, param in model.named_parameters():
+            param.requires_grad = not param.requires_grad
 
 
-def freezeParameters( model, conditions ):
+def freezeParameters( model, conditions, invertCondition=False ):
     """
     conditions is a tuple of tuples (condition):
     ( ( keyword1 AND keyword2 AND ... ) OR ( keyword3 AND ... ) OR ... )
     a condition is multiple keywords which need to be in the parameter name
     to freeze the parameter
     """
-    setParamaterGrad( model, conditions, False )
+    setParamaterGrad( model, conditions, invertCondition, False )
 
 
-def unfreezeParameters( model, conditions ):
+def unfreezeParameters( model, conditions, invertCondition=False ):
     """
     conditions is a tuple of tuples (condition):
     ( ( keyword1 AND keyword2 AND ... ) OR ( keyword3 AND ... ) OR ... )
     a condition is multiple keywords which need to be in the parameter name
     to freeze the parameter
     """
-    setParamaterGrad( model, conditions, True )
+    setParamaterGrad( model, conditions,invertCondition, True )
 
 
 def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5, FILENAME='aa', check_dls=None):
