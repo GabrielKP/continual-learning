@@ -16,6 +16,7 @@ def main():                     # Best values so far
     start_from_scratch = True
     grammaticality_bias = 0
     punishment = 1
+    conditions = ( ('encoder', ), )
 
     LOADNAME = 'models/last-training_shifted.pt'
     SAVENAME = 'models/last-training_shifted.pt'
@@ -50,7 +51,6 @@ def main():                     # Best values so far
 
     input_dim = shifted_length
 
-
     # Get Model
     model, opt = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding, bidirectional )
     if  not start_from_scratch:
@@ -60,8 +60,8 @@ def main():                     # Best values so far
     loss_func = SequenceLoss( ggen, ignore_index=PAD_TOKEN, grammaticality_bias=grammaticality_bias, punishment=punishment )
 
     # Check_dls
-    check_dls1 = [ ( train_dl, loss_func, ), ( train_dl, allOrNoneloss, ), ( test_dl, loss_func, ), ( test_dl, allOrNoneloss, ) ]
-    check_dls2 = [ ( train_shift_dl, loss_func, ), ( train_shift_dl, allOrNoneloss, ), ( test_shift_dl, loss_func, ), ( test_shift_dl, allOrNoneloss, ) ]
+    check_dls1 = [ ( train_dl, loss_func, ), ( train_dl, allOrNoneloss, ), ( test_dl, loss_func, ), ( test_dl, allOrNoneloss, ), ( test_incorrect_dl, loss_func, ), ( test_incorrect_dl, allOrNoneloss, ) ]
+    check_dls2 = [ ( train_shift_dl, loss_func, ), ( train_shift_dl, allOrNoneloss, ), ( test_shift_dl, loss_func, ), ( test_shift_dl, allOrNoneloss, ), ( test_incorrect_shift_dl, loss_func, ), ( test_incorrect_shift_dl, allOrNoneloss, ) ]
 
     # Train
     _, hist_valid1, hist_check_dls1 = fit( epochs, model, loss_func, opt, train_dl, train_dl, teacher_forcing_ratio, SAVENAME, check_dls1 )
@@ -69,12 +69,27 @@ def main():                     # Best values so far
     # Load best model
     model.load_state_dict( torch.load( SAVENAME ) )
 
+    # Freeze Parameters
+    freezeParameters( model, conditions )
+    # New optimizer
+    opt = optim.AdamW( filter(lambda p: p.requires_grad, model.parameters()), lr=lr )
+    paramsum = 0
+    for param in model.parameters():
+        if param.requires_grad == False:
+            paramsum += param.abs().sum()
+
     # Train on shifted
     _, hist_valid2, hist_check_dls2 = fit( epochs, model, loss_func, opt, train_shift_dl, train_shift_dl, teacher_forcing_ratio, SAVENAME, check_dls2 )
 
+    nparamsum = 0
+    for param in model.parameters():
+        if param.requires_grad == False:
+            nparamsum += param.abs().sum()
+    print( paramsum, nparamsum )
+
     # plotHist( ( hist_valid1, 'Normal', ), ( hist_valid2, 'Shifted', ) )
     # plotHist( ( hist_test1, 'Normal', ), ( hist_test2, 'Shifted', ) )
-    labels = ("Normal", "Shifted")
+    labels = ( "Normal", "Shifted", )
     stepsize = 5
     plotMultipleHist( ( hist_check_dls1, hist_check_dls2 ), labels, stepsize )
 
