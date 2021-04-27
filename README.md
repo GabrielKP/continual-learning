@@ -50,3 +50,65 @@ incorrect: ['A','G','F','G','C'],
 incorrect: ['A','G','D','C','F'],
 incorrect: ['A','G','F','D','C'],
 ```
+
+## Old Grammar
+
+5 Stimuli: A C D G F
+
+   D    G    C -> G
+ /  \ /  \ /  \  /
+A -> C -> F -> END
+
+Based on:
+S -> AP + CP + FP
+AP -> A + (D)
+CP -> C + (G)
+FP -> F + (CP)
+Predictable
+
+
+Example for unpredictable (Saffran 2008):
+S -> AP + BP
+AP -> {(A) + (D)}
+BP -> CP + F
+CP -> {(C) + (G)}
+
+{} == xor
+
+
+## New Grammar
+
+5 Stimuli: A C D G F
+
+Basis:
+S -> AP + FP
+AP -> A + (DP)
+DP -> D + (CP)
+CP -> C + (G)
+FP -> F + (CP)
+
+## Shifted Grammar experiment
+
+10 Stimuli: A C D G F A2 C2 D2 G2 F2
+
+   D    G    C -> G
+ /  \ /  \ /  \  /
+A -> C -> F -> END
+
+Based on:
+S -> AP + CP + FP
+AP -> A + (D)
+CP -> C + (G)
+FP -> F + (CP)
+
+Converted to
+
+  D2    G2    C2 -> G2
+ /  \  /  \  /  \  /
+A2 -> C2 -> F2 -> END
+
+Based on:
+S -> AP + CP + FP
+AP -> A2 + (D2)
+CP -> C2 + (G2)
+FP -> F2 + (CP)
