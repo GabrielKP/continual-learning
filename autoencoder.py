@@ -260,7 +260,14 @@ def allOrNoneloss( output, labels ):
     return torch.tensor( sum( ret ) )
 
 
-def setParamaterGrad( model, conditions, invertCondition, setvalue):
+def applyOnParameters( model, conditions, apply_function ):
+    """
+    conditions is a tuple of tuples (condition):
+    ( ( keyword1 AND keyword2 AND ... ) OR ( keyword3 AND ... ) OR ... )
+    a condition is multiple keywords which need to be in the parameter name
+    to freeze the parameter
+    apply_function is the function applied on the parameter chosen
+    """
     for name, param in model.named_parameters():
         # Check every condition
         for condition in conditions:
@@ -271,31 +278,43 @@ def setParamaterGrad( model, conditions, invertCondition, setvalue):
                     allincluded = False
                     break
             if allincluded:
-                param.requires_grad = setvalue
-    # Cheap solution but it works
-    if invertCondition:
-        for _, param in model.named_parameters():
-            param.requires_grad = not param.requires_grad
+                apply_function( param )
 
 
-def freezeParameters( model, conditions, invertCondition=False ):
+def reInitParameters( model, conditions ):
     """
     conditions is a tuple of tuples (condition):
     ( ( keyword1 AND keyword2 AND ... ) OR ( keyword3 AND ... ) OR ... )
     a condition is multiple keywords which need to be in the parameter name
     to freeze the parameter
     """
-    setParamaterGrad( model, conditions, invertCondition, False )
+    def init( param ):
+        nn.init.uniform_( param.data, -0.08, 0.08 )
+    applyOnParameters( model, conditions, init )
 
 
-def unfreezeParameters( model, conditions, invertCondition=False ):
+def freezeParameters( model, conditions ):
     """
     conditions is a tuple of tuples (condition):
     ( ( keyword1 AND keyword2 AND ... ) OR ( keyword3 AND ... ) OR ... )
     a condition is multiple keywords which need to be in the parameter name
     to freeze the parameter
     """
-    setParamaterGrad( model, conditions,invertCondition, True )
+    def freeze( param ):
+        param.requires_grad = False
+    applyOnParameters( model, conditions, freeze )
+
+
+def unfreezeParameters( model, conditions ):
+    """
+    conditions is a tuple of tuples (condition):
+    ( ( keyword1 AND keyword2 AND ... ) OR ( keyword3 AND ... ) OR ... )
+    a condition is multiple keywords which need to be in the parameter name
+    to freeze the parameter
+    """
+    def unfreeze( param ):
+        param.requires_grad = True
+    applyOnParameters( model, conditions, unfreeze )
 
 
 def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5, FILENAME='aa', check_dls=None):
