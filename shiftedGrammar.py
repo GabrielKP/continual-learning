@@ -1,10 +1,13 @@
 
 from grammar import *
-from autoencoder import *
+from autoencoder import get_model, freezeParameters, unfreezeParameters, reInitParameters
+from training import fit, plotMultipleHist
+from losses import SequenceLoss, allOrNoneloss
+from torch import optim
 
 def main():                     # Best values so far
     bs = 4                      # 4
-    epochs = 300                # 800 / 2000 for 1 layer
+    epochs = 1000                # 800 / 2000 for 1 layer
     lr = 0.01                   # 0.1
     teacher_forcing_ratio = 0.5 # 0.5
     use_embedding = True        # True
@@ -16,7 +19,7 @@ def main():                     # Best values so far
     start_from_scratch = True
     grammaticality_bias = 0
     punishment = 1
-    conditions = ( ( 'fc_one', ), ( 'fc_out', ), ( 'embed', ) )
+    conditions = ( ( 'fc_out', ), ( 'fc_one', ), ( 'embed', ), )
 
     LOADNAME = 'models/last-training_shifted.pt'
     SAVENAME = 'models/last-training_shifted.pt'
@@ -79,9 +82,9 @@ def main():                     # Best values so far
     freezeParameters( model, ( '', ) )
     unfreezeParameters( model, conditions )
 
-    # for name, param in model.named_parameters():
-    #     if param.requires_grad == True:
-    #         print( name )
+    for name, param in model.named_parameters():
+        if param.requires_grad == True:
+            print( name )
 
 
     # New optimizer (if not because of internal states it keeps updating old params)

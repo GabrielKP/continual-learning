@@ -1,16 +1,14 @@
 # Main file
 
-import time
 import random
 import torch
-import numpy as np
-import matplotlib.pyplot as plt
 from torch.utils.data.dataloader import DataLoader
-
 from grammar import GrammarGen, START_TOKEN, SequenceDataset, collate_batch, get_correctStimuliSequence, get_incorrectStimuliSequence, get_trainstimuliSequence, get_teststimuliSequence
-
 from torch import nn
 from torch import optim
+from training import fit, visual_eval, evaluate, plotHist
+from losses import SequenceLoss
+
 
 device = torch.device( 'cuda' if torch.cuda.is_available() else 'cpu' )
 PAD_TOKEN = 0   # ugly but works for now
@@ -182,84 +180,6 @@ def get_model(input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, us
     return model, optim.AdamW( model.parameters(), lr=lr )
 
 
-def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=None):
-    # loss function gets padded sequences -> autoencoder
-    labels = seqs
-
-    # Get model output
-    output = model( labels, seqs, teacher_forcing_ratio )
-
-    # Cut of start sequence & reshaping
-    # output = output[:,1:].reshape(-1, model.decoder.output_dim )
-    # labels = labels[:,1:].reshape(-1)
-
-    # print( "------------------" )
-    # print( output )
-    # print( labels )
-
-    # Compute loss
-    loss = loss_func( output, labels )
-
-    if opt is not None:
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
-        opt.step()
-        opt.zero_grad()
-
-    return loss.item(), len( labels )
-
-
-def train(model, train_dl, loss_func, opt, teacher_forcing_ratio):
-    """ Trains 1 epoch of the model, returns loss for train set"""
-
-    model.train()
-
-    epoch_loss = 0
-    epoch_num_seqs = 0
-
-    for labels, seqs in train_dl:
-        batch_loss, batch_num_seqs = loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio, opt)
-        epoch_loss += batch_loss * batch_num_seqs
-        epoch_num_seqs += batch_num_seqs
-
-    return epoch_loss / epoch_num_seqs
-
-
-def evaluate(model, loss_func, test_dl):
-    model.eval()
-    with torch.no_grad():
-        losses, nums = zip(
-            *[loss_batch( model, loss_func, labels, seqs, teacher_forcing_ratio=0 ) for labels, seqs in test_dl]
-        )
-        return np.sum( np.multiply( losses, nums ) ) / np.sum( nums )
-
-
-def epoch_time(start_time, end_time):
-    elapsed_time = end_time - start_time
-    elapsed_mins = int( elapsed_time / 60 )
-    elapsed_secs = elapsed_time - (elapsed_mins * 60)
-    return elapsed_mins, elapsed_secs
-
-
-def cutStartAndEndToken(seq):
-    ret = []
-    for stim in seq:
-        if stim == END_TOKEN:
-            break
-        ret.append( stim )
-    return ret
-
-
-def allOrNoneloss( output, labels ):
-    ret = []
-    for b, seq in enumerate( labels ):
-        prediction = output[b].argmax(-1)
-        trgtlist = seq.tolist()[1:-1]
-        predlist = cutStartAndEndToken( prediction.tolist() )
-        ret.append( not predlist == trgtlist )
-    return torch.tensor( sum( ret ) )
-
-
 def applyOnParameters( model, conditions, apply_function ):
     """
     conditions is a tuple of tuples (condition):
@@ -315,179 +235,6 @@ def unfreezeParameters( model, conditions ):
     def unfreeze( param ):
         param.requires_grad = True
     applyOnParameters( model, conditions, unfreeze )
-
-
-def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5, FILENAME='aa', check_dls=None):
-    """
-    Fits model on train data, printing val and train loss
-
-    check_dls : list of tuples: (dataloader, loss_function)
-        when given as argument, in every epoch every dataloader
-        will be evaluted with its loss function.
-        If given fit returns additional list with tensors containing
-        evaluation results for every epoch
-    """
-
-    best_val_loss = float('inf')
-    hist_valid = torch.empty( epochs )
-    hist_train = torch.empty( epochs )
-    if check_dls is not None:
-        hist_check = []
-        for _ in range( len( check_dls ) ):
-            hist_check.append( torch.empty( epochs ) )
-
-    for epoch in range(epochs):
-
-        start_time = time.time()
-
-        train_loss = train(model, train_dl, loss_func, opt, teacher_forcing_ratio)
-        valid_loss = evaluate(model, loss_func, valid_dl)
-
-        end_time = time.time()
-
-        if valid_loss < best_val_loss:
-            best_val_loss = valid_loss
-            torch.save( model.state_dict(), FILENAME )
-
-        epoch_mins, epoch_secs = epoch_time(start_time, end_time)
-
-        hist_train[epoch] = train_loss
-        hist_valid[epoch] = valid_loss
-        print(f'Epoch: {epoch+1:03} | Time: {epoch_mins}m {epoch_secs:.2}s')
-        print(f'\tTrain Loss: {train_loss:.5f} |  Val. Loss: {valid_loss:.5f}')
-
-        if check_dls is not None:
-            for i, ( dl, dl_loss_func ) in enumerate( check_dls ):
-                hist_check[i][epoch] = evaluate( model, dl_loss_func, dl )
-
-    if check_dls is None:
-        return hist_train, hist_valid
-    return hist_train, hist_valid, hist_check
-
-
-def visual_eval(model, test_dl):
-    model.eval()
-    with torch.no_grad():
-        for labels, seqs in test_dl:
-            output = model( labels, seqs, teacher_forcing_ratio=0 )
-            # print( output )
-            for b, seq in enumerate( seqs ):
-                prediction = output[b].argmax(-1)
-                trgtlist = seq.tolist()[1:-1]
-                predlist = cutStartAndEndToken( prediction.tolist() )
-                print( f'Same: {trgtlist == predlist} Truth: {trgtlist} - Pred: {predlist}' )
-
-
-def softmax( x ):
-    return x.exp() / x.exp().sum(-1).unsqueeze(-1)
-
-class SequenceLoss():
-
-    def __init__(self, grammarGen: GrammarGen, ignore_index=-1, grammaticality_bias=0.5, punishment=1):
-        self.ggen = grammarGen
-        self.gbias = grammaticality_bias
-        self.number_grammar = grammarGen.number_grammar
-        self.punishment = punishment
-        self.ignore_index = ignore_index
-
-        self.CEloss = nn.CrossEntropyLoss( ignore_index=ignore_index )
-
-        self.init_grammaticalityMatrix()
-
-    def init_grammaticalityMatrix(self):
-
-        # Grammaticality Matrix is a Matrix of ones, in which
-        # only the entries are 0 which are in the grammar
-        vocab_size = len( self.ggen )
-        self.grammaticalityMatrix = torch.ones( ( vocab_size, vocab_size ) )
-
-        for stimA, stimBs in self.number_grammar.items():
-            for stimB in stimBs:
-                self.grammaticalityMatrix[stimA, stimB] = 0
-
-        self.grammaticality_indices = self.grammaticalityMatrix == 1
-
-
-    def __call__(self, outputs: torch.tensor, labels: torch.tensor):
-
-        bs = len( outputs )
-
-        CEloss = torch.zeros( bs )
-        GRloss = torch.zeros( bs )
-
-        for b in range(bs):
-
-            # Cross Entropy loss
-            CEOutput = outputs[b]
-            CELabel = labels[b][1:].type( torch.long )  # Cut off starting token and conver to long
-
-            CEloss[b] = self.CEloss( CEOutput, CELabel )
-            if self.gbias == 0:
-                continue
-
-            # Grammaticality
-            output = softmax( outputs[b] )
-            label = labels[b][1:]
-
-            seq_length = output.size(0)
-
-            seq_loss = torch.empty( seq_length )
-
-
-            # Judge pairwise grammaticality of prediction A -> prediction B in stimulus sequence
-            for i in range( seq_length - 1 ):
-
-                if label[i] == self.ignore_index:
-                    continue
-
-                # Get rid of the gradient (no_grad did not work :( )
-                predA = torch.tensor( output[i].unsqueeze(0).transpose( 0, 1 ).tolist() )
-                predB = output[i + 1].unsqueeze(0)
-                transitionMatrix = torch.matmul( predA, predB )
-
-                errorvalues = transitionMatrix[self.grammaticality_indices]
-
-                seq_loss[i] = ( errorvalues.sum() * self.punishment ).pow( 2 )
-
-            GRloss[b] = seq_loss.mean()
-
-        if self.gbias == 0:
-            return CEloss.mean()
-
-        return GRloss.mean() * self.gbias + CEloss.mean() * ( 1 - self.gbias )
-
-
-def plotHist( *hist_tuples, stepsize=5 ):
-    """
-    example: plotHist( ( hist_valid1, 'Normal', ), ( hist_valid2, 'Shifted', ) )
-    """
-    labels = []
-    #colors = ['blue', 'or']
-    for history, label in hist_tuples:
-        xvals = range( 0, history.size(0), stepsize )
-        plt.plot( xvals, history[xvals] )
-        labels.append( label)
-    plt.legend( labels )
-    plt.show()
-
-
-def plotMultipleHist( hist_tensors, labels, stepsize=5 ):
-    """
-    hist_tensors expected in following form:
-    ( [label1_plotdata1, label1_plotdata2, ...], [ label2_plotdata1, label2_plotdata2, ... ], ...)
-    """
-    assert len( hist_tensors ) == len( labels ), "labels and different plots do not match"
-    n_figs = len( hist_tensors[0] )
-    n_lines = len( hist_tensors )
-    fig = plt.figure()
-    for x in range( n_figs ):
-        ax = fig.add_subplot( n_figs// 2, 2, x + 1 )
-        for m in range( n_lines ):
-            xvals = range( 0, hist_tensors[m][x].size(0), stepsize )
-            ax.plot( xvals, hist_tensors[m][x][xvals]  )
-    ax.legend( labels )
-    fig.tight_layout()
-    plt.show()
 
 
 def main():                     # Best values so far
@@ -549,7 +296,7 @@ def main():                     # Best values so far
     # Load best model
     model.load_state_dict( torch.load( SAVENAME ) )
 
-    plotHist( ( hist_train, 'First', ), ( hist_valid, 'second') )
+    plotHist( ( hist_train, 'Train', ), ( hist_valid, 'Valid') )
 
     # Test
     print( '\nTrain' )
