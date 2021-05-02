@@ -52,7 +52,7 @@ def main():                     # Best values so far
     test_incorrect_shift_seqs, _ = shiftStimuli( ggen, test_incorrect_seqs )
     test_incorrect_shift_dl = get_dl( bs * 2, test_incorrect_shift_seqs, False )
 
-    input_dim = shifted_length
+    input_dim = len( ggen )
 
     # Get Model
     model, opt = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding, bidirectional )
@@ -79,19 +79,19 @@ def main():                     # Best values so far
     # print( "..\n\n")
 
     # Freeze Parameters
-    freezeParameters( model, ( '', ) )
-    unfreezeParameters( model, conditions )
+    reInitParameters( model, conditions )
+    # unfreezeParameters( model, conditions )
 
-    for name, param in model.named_parameters():
-        if param.requires_grad == True:
-            print( name )
+    # for name, param in model.named_parameters():
+    #     if param.requires_grad == True:
+    #         print( name )
 
 
     # New optimizer (if not because of internal states it keeps updating old params)
     opt = optim.AdamW( filter(lambda p: p.requires_grad, model.parameters()), lr=lr )
 
     # Train on shifted
-    _, hist_valid2, hist_check_dls2 = fit( epochs, model, loss_func, opt, train_shift_dl, train_shift_dl, teacher_forcing_ratio, SAVENAME, check_dls2 )
+    _, hist_valid2, hist_check_dls2 = fit( epochs, model, loss_func, opt, train_dl, train_dl, teacher_forcing_ratio, SAVENAME, check_dls1 )
 
     labels = ( "Normal", "Shifted", )
     sublabels = ( "Test", "Training-Correct", "Training-Incorrect")
@@ -99,18 +99,6 @@ def main():                     # Best values so far
     plotMultipleHist( ( hist_check_dls1, hist_check_dls2 ), labels, stepsize, sublabels )
 
     return
-    # Test
-    print( '\nTrain' )
-    visual_eval( model, train_dl )
-    print( evaluate( model, loss_func, train_dl ) )
-
-    print( '\nTest - Correct' )
-    visual_eval( model, test_dl )
-    print( evaluate( model, loss_func, test_dl ) )
-
-    print( '\nTest - Incorrect' )
-    visual_eval( model, test_incorrect_dl )
-    print( evaluate( model, loss_func, test_incorrect_dl ) )
 
 
 if __name__ == '__main__':
