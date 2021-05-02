@@ -122,20 +122,26 @@ def plotHist( *hist_tuples, stepsize=5 ):
     plt.show()
 
 
-def plotMultipleHist( hist_tensors, labels, stepsize=5 ):
+def plotMultipleHist( hist_tensors, labels, stepsize=5, sublabels=None ):
     """
     hist_tensors expected in following form:
     ( [label1_plotdata1, label1_plotdata2, ...], [ label2_plotdata1, label2_plotdata2, ... ], ...)
     """
     assert len( hist_tensors ) == len( labels ), "labels and different plots do not match"
+
     n_figs = len( hist_tensors[0] )
-    n_lines = len( hist_tensors )
+    n_difflines = len( hist_tensors )
+
     fig = plt.figure()
     for x in range( n_figs ):
         ax = fig.add_subplot( n_figs// 2, 2, x + 1 )
-        for m in range( n_lines ):
+        for m in range( n_difflines ):
             xvals = range( 0, hist_tensors[m][x].size(0), stepsize )
             ax.plot( xvals, hist_tensors[m][x][xvals]  )
+
+        if sublabels is not None and x % 2 == 0:
+            ax.set_title( sublabels[x//2] )
+
     ax.legend( labels )
     fig.tight_layout()
     plt.show()

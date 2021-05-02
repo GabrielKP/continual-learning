@@ -94,8 +94,9 @@ def main():                     # Best values so far
     _, hist_valid2, hist_check_dls2 = fit( epochs, model, loss_func, opt, train_shift_dl, train_shift_dl, teacher_forcing_ratio, SAVENAME, check_dls2 )
 
     labels = ( "Normal", "Shifted", )
+    sublabels = ( "Test", "Training-Correct", "Training-Incorrect")
     stepsize = 5
-    plotMultipleHist( ( hist_check_dls1, hist_check_dls2 ), labels, stepsize )
+    plotMultipleHist( ( hist_check_dls1, hist_check_dls2 ), labels, stepsize, sublabels )
 
     return
     # Test
