@@ -2,8 +2,9 @@
 
 import random
 import torch
+import grammars as g
 from torch.utils.data.dataloader import DataLoader
-from grammar import GrammarGen, START_TOKEN, SequenceDataset, collate_batch, get_correctStimuliSequence, get_incorrectStimuliSequence, get_trainstimuliSequence, get_teststimuliSequence
+from grammar import GrammarGen, START_TOKEN, SequenceDataset, collate_batch
 from torch import nn
 from torch import optim
 from training import fit, visual_eval, evaluate, plotHist
@@ -260,7 +261,7 @@ def main():                     # Best values so far
 
     # Note: BATCH IS IN FIRST DIMENSION
     # Train
-    train_seqs = ggen.stim2seqs( get_trainstimuliSequence() )
+    train_seqs = ggen.stim2seqs( g.g0_train() )
     train_ds = SequenceDataset( train_seqs )
     train_dl = DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=collate_batch )
 
@@ -270,12 +271,12 @@ def main():                     # Best values so far
     valid_dl = DataLoader( valid_ds, batch_size=bs, collate_fn=collate_batch )
 
     # Test - Correct
-    test_seqs = ggen.stim2seqs( get_correctStimuliSequence() )
+    test_seqs = ggen.stim2seqs( g.g0_test_gr() )
     test_ds = SequenceDataset( test_seqs )
     test_dl = DataLoader( test_ds, batch_size=bs, collate_fn=collate_batch )
 
     # Test - Incorrect
-    test_incorrect_seqs = ggen.stim2seqs( get_incorrectStimuliSequence() )
+    test_incorrect_seqs = ggen.stim2seqs( g.g0_test_ugr() )
     test_incorrect_ds = SequenceDataset( test_incorrect_seqs )
     test_incorrect_dl = DataLoader( test_incorrect_ds, batch_size=bs * 2, collate_fn=collate_batch )
 

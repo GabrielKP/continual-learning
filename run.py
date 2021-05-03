@@ -1,7 +1,9 @@
 # File to load and test models
 
+import torch
+import grammars as g
 from autoencoder import SequenceLoss, evaluate, get_model, visual_eval
-from grammar import *
+from grammar import GrammarGen, DataLoader, SequenceDataset, collate_batch
 
 def main():
 
@@ -22,7 +24,7 @@ def main():
 
     # Note: BATCH IS IN FIRST DIMENSION
     # Train
-    train_seqs = ggen.stim2seqs( get_trainstimuliSequence() )
+    train_seqs = ggen.stim2seqs( g.g0_train() )
     train_ds = SequenceDataset( train_seqs )
     train_dl = DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=collate_batch )
 
