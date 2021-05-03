@@ -1,6 +1,6 @@
 # Continual-Learning
 
-## Artificial Grammar Learning Experiment Milne et al 2018
+### Artificial Grammar Learning Experiment Milne et al 2018
 
 Familiarisation -> Test -> Refamilarisation -> Test ...
 
@@ -50,68 +50,89 @@ incorrect: ['A','G','F','G','C'],
 incorrect: ['A','G','D','C','F'],
 incorrect: ['A','G','F','D','C'],
 ```
+## Grammars
 
-## Old Grammar
+### Grammatical
+
+Taken from A.S. Reuber, 1969:
+
+Grammar 1:
+<img src="data/grammar-1.png" alt="grammar" width="400"/>
+
+Grammar 2:
+<img src="data/grammar-2.png" alt="grammar" width="400"/>
+
+
+Taken from Gomez & Schwaneveldt, 1994
+
+Grammar 3:
+<img src="data/grammar-3.png" alt="grammar" width="400"/>
+
+Grammar 4:
+<img src="data/grammar-4.png" alt="grammar" width="400"/>
+
+### (Un)grammatical sequence constraints
+
+Vokey-Brooks:
+- 3 to 7 letter seqs
+- different seqs at least edit distance 2
+- balanced seq length, balanced usage of transitions
+- ug seqs differed in only one position (edit distance 1)
+Lotz-Kinder:
+- same as Vokey-Brooks
+- non-transfer accuracy: 56% (still significant)
+
+
+## Adhoc
+
+### Old Grammar
 
 5 Stimuli: A C D G F
 
+```
    D    G    C -> G
  /  \ /  \ /  \  /
 A -> C -> F -> END
+```
 
 Based on:
+```
 S -> AP + CP + FP
 AP -> A + (D)
 CP -> C + (G)
 FP -> F + (CP)
+```
 Predictable
 
 
 Example for unpredictable (Saffran 2008):
+```
 S -> AP + BP
 AP -> {(A) + (D)}
 BP -> CP + F
 CP -> {(C) + (G)}
 
 {} == xor
+```
 
-
-## New Grammar
+### New Grammar (old version)
 
 5 Stimuli: A C D G F
 
 Basis:
+```
 S -> AP + FP
 AP -> A + (DP)
 DP -> D + (CP)
 CP -> C + (G)
 FP -> F + (CP)
+```
 
-## Shifted Grammar experiment
+### Shifted Grammar experiment
 
-10 Stimuli: A C D G F A2 C2 D2 G2 F2
-
-   D    G    C -> G
- /  \ /  \ /  \  /
-A -> C -> F -> END
-
-Based on:
-S -> AP + CP + FP
-AP -> A + (D)
-CP -> C + (G)
-FP -> F + (CP)
-
-Converted to
-
-  D2    G2    C2 -> G2
- /  \  /  \  /  \  /
-A2 -> C2 -> F2 -> END
-
-Based on:
-S -> AP + CP + FP
-AP -> A2 + (D2)
-CP -> C2 + (G2)
-FP -> F2 + (CP)
+1. Train on basis grammar
+2. Reinitiate specific layers
+3. Train on basis grammar again
 
 ## Model architecture
 
