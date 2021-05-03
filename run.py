@@ -1,5 +1,6 @@
 # File to load and test models
 
+from losses import allOrNoneloss
 import torch
 import grammars as g
 from autoencoder import SequenceLoss, evaluate, get_model, visual_eval
@@ -7,7 +8,7 @@ from grammar import GrammarGen, DataLoader, SequenceDataset, collate_batch
 
 def main():
 
-    LOADNAME = 'models/aEv4-bi-200-1-3.pt'
+    LOADNAME = 'models/lt-g1.pt'
     bs = 4
     lr = 0.0001                         # Learning rate
     use_embedding = True                # Embedding Yes/No
@@ -16,55 +17,30 @@ def main():
     intermediate_dim = 200              # Intermediate Layer Neurons
     n_layers = 1                        # Lstm Layers
     dropout = 0.5
-    ggen = GrammarGen()                 # Grammar
-    input_dim = len( ggen )
     grammaticality_bias = 0
     punishment = 0
-    loss_func = SequenceLoss( ggen, grammaticality_bias=grammaticality_bias, punishment=punishment )
+    loss_func = SequenceLoss( GrammarGen( g.g1() ), grammaticality_bias=grammaticality_bias, punishment=punishment )
 
-    # Note: BATCH IS IN FIRST DIMENSION
-    # Train
-    train_seqs = ggen.stim2seqs( g.g0_train() )
-    train_ds = SequenceDataset( train_seqs )
-    train_dl = DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=collate_batch )
+    g1_train, g1_test_gr, g1_test_ugr, g1_size = g.g1_dls( bs )
 
-    # Validation
-    valid_seqs = ggen.generate( 12 )
-    valid_ds = SequenceDataset( valid_seqs )
-    valid_dl = DataLoader( valid_ds, batch_size=bs, collate_fn=collate_batch )
-
-    # Test - Correct
-    test_seqs = ggen.stim2seqs( get_correctStimuliSequence() )
-    test_ds = SequenceDataset( test_seqs )
-    test_dl = DataLoader( test_ds, batch_size=bs, collate_fn=collate_batch )
-
-    # Test - Incorrect
-    test_incorrect_seqs = ggen.stim2seqs( get_incorrectStimuliSequence() )
-    test_incorrect_ds = SequenceDataset( test_incorrect_seqs )
-    test_incorrect_dl = DataLoader( test_incorrect_ds, batch_size=bs * 2, collate_fn=collate_batch )
-
-
+    input_dim = g1_size
     ### Load Model
     model, _ = get_model( input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding, bidirectional )
     model.load_state_dict( torch.load( LOADNAME ) )
 
-
     ### Test
     print( '\nTrain' )
-    visual_eval( model, train_dl )
-    print( evaluate( model, loss_func, train_dl ) )
+    visual_eval( model, g1_train )
+    print( evaluate( model, loss_func, g1_test_gr ) )
 
-    print( '\nValidation' )
-    visual_eval( model, valid_dl )
-    print( evaluate( model, loss_func, valid_dl ) )
+    print( '\nTest - Grammatical' )
+    visual_eval( model, g1_test_gr )
+    print( evaluate( model, loss_func, g1_test_gr ) )
 
-    print( '\nTest - Correct' )
-    visual_eval( model, test_dl )
-    print( evaluate( model, loss_func, test_dl ) )
-
-    print( '\nTest - Incorrect' )
-    visual_eval( model, test_incorrect_dl )
-    print( evaluate( model, loss_func, test_incorrect_dl ) )
+    print( '\nTest - Ungrammatical' )
+    visual_eval( model, g1_test_ugr )
+    print( evaluate( model, loss_func, g1_test_ugr ) )
+    print( evaluate( model, allOrNoneloss, g1_test_ugr ) )
 
 
 if __name__ == "__main__":
