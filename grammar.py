@@ -5,7 +5,6 @@
 
 import random
 import torch
-import grammars as g
 
 from torch import nn
 from torch.utils.data.dataset import Dataset
@@ -29,7 +28,16 @@ class GrammarGen():
 
     def __init__(self, grammar=None ):
         if grammar is None:
-            self.grammar = g.g0()
+            self.grammar = {
+                'START': ['A'],
+                'A': ['D','C1'],
+                'C1': ['G1','F'],
+                'G1': ['F'],
+                'D': ['C1'],
+                'F': ['C2', 'END'],
+                'C2': ['END', 'G2'],
+                'G2': ['END']
+            }
         else:
             self.grammar = grammar
         self._initOutput()
@@ -167,24 +175,6 @@ def collate_batch(batch):
     label_list = torch.tensor( label_list, dtype=torch.float )
     return label_list.to( device ), seq_list
 
-# def collate_batch(batch):
-#     """
-#     https://pytorch.org/tutorials/beginner/text_sentiment_ngrams_tutorial.html
-#     Basically:
-#     1. create tensor for all labels in a batch
-#     2. Add start (0) and end token (1) to each sequennce
-#     3. Mash sequences together into a list
-#     4. Pad smaller sequences with 0
-#     """
-#     label_list, seq_list = [], []
-#     for (_label, _seq) in batch:
-#         label_list.append( _label )
-#         _seq = [1] + _seq + [2]
-#         processed_seq = torch.tensor( _seq, dtype=torch.int32 )
-#         seq_list.append( processed_seq )
-#     label_list = torch.tensor( label_list, dtype=torch.float )
-#     seq_list = nn.utils.rnn.pad_sequence( seq_list, batch_first=True )
-#     return label_list.to( device ), seq_list
 
 def get_dl(bs, sequences, shuffle=True):
     train_ds = SequenceDataset( sequences )
