@@ -125,7 +125,7 @@ def plotHist( *hist_tuples, stepsize=5 ):
     plt.show()
 
 
-def plotMultipleHist( hist_tensors, labels, stepsize=5, sublabels=None ):
+def plotMultipleHist( hist_tensors, labels, stepsize=5, sublabels=None, ylims=None ):
     """
     hist_tensors expected in following form:
     ( [label1_plotdata1, label1_plotdata2, ...], [ label2_plotdata1, label2_plotdata2, ... ], ...)
@@ -141,6 +141,15 @@ def plotMultipleHist( hist_tensors, labels, stepsize=5, sublabels=None ):
         for m in range( n_difflines ):
             xvals = range( 0, hist_tensors[m][x].size(0), stepsize )
             ax.plot( xvals, hist_tensors[m][x][xvals]  )
+
+        if ylims is not None and ( x + 1 ) % 2 == 0:
+            a, b = ylims[x//2]
+            yticks = list( range( a, b, ( b - a )//3 ) ) + [b]
+            # make sure last ytick does not overlap
+            if yticks[-1] - yticks[-2] < 0.1 * b:
+                yticks.pop(-2)
+            ax.set_ylim( ( a, b ) )
+            ax.set_yticks( yticks )
 
         if sublabels is not None and x % 2 == 0:
             ax.set_title( sublabels[x//2] )
