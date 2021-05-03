@@ -1,5 +1,50 @@
 # Specific instances of grammars, their train and testsets
 # gr = grammatical, ugr = ungrammatical
+import grammar as gr
+
+def g0_dls( bs=4 ):
+    """Returns triple of DataLoaders: (train, test_gr, test_ugr)"""
+
+    ggen = gr.GrammarGen( g0() )
+
+    train_seqs = ggen.stim2seqs( g0_train() )
+    train_ds = gr.SequenceDataset( train_seqs )
+    train_dl = gr.DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=gr.collate_batch )
+
+    # test gr
+    test_gr_seqs = ggen.stim2seqs( g0_test_gr() )
+    test_gr_ds = gr.SequenceDataset( test_gr_seqs )
+    test_gr_dl = gr.DataLoader( test_gr_ds, batch_size=bs, collate_fn=gr.collate_batch )
+
+    # test ugr
+    test_ugr_seqs = ggen.stim2seqs( g0_test_ugr() )
+    test_ugr_ds = gr.SequenceDataset( test_ugr_seqs )
+    test_ugr_dl = gr.DataLoader( test_ugr_ds, batch_size=bs * 2, collate_fn=gr.collate_batch )
+
+    return train_dl, test_gr_dl, test_ugr_dl
+
+
+def g1_dls( bs=4 ):
+    """Returns triple of DataLoaders: (train, test_gr, test_ugr)"""
+
+    ggen = gr.GrammarGen( g1() )
+
+    train_seqs = ggen.stim2seqs( g1_train() )
+    train_ds = gr.SequenceDataset( train_seqs )
+    train_dl = gr.DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=gr.collate_batch )
+
+    # test gr
+    test_gr_seqs = ggen.stim2seqs( g1_test_gr() )
+    test_gr_ds = gr.SequenceDataset( test_gr_seqs )
+    test_gr_dl = gr.DataLoader( test_gr_ds, batch_size=bs, collate_fn=gr.collate_batch )
+
+    # test ugr
+    test_ugr_seqs = ggen.stim2seqs( g1_test_ugr() )
+    test_ugr_ds = gr.SequenceDataset( test_ugr_seqs )
+    test_ugr_dl = gr.DataLoader( test_ugr_ds, batch_size=bs * 2, collate_fn=gr.collate_batch )
+
+    return train_dl, test_gr_dl, test_ugr_dl
+
 
 def g0():
     """Returns grammar structure for g0"""
