@@ -3,7 +3,10 @@
 import grammar as gr
 
 def g0_dls( bs=4 ):
-    """Returns triple of DataLoaders: (train, test_gr, test_ugr)"""
+    """
+    Returns tuple of DataLoaders and amount of
+    stimuli in g0: (train, test_gr, test_ugr, len( g0 ) )
+    """
 
     ggen = gr.GrammarGen( g0() )
 
@@ -21,11 +24,14 @@ def g0_dls( bs=4 ):
     test_ugr_ds = gr.SequenceDataset( test_ugr_seqs )
     test_ugr_dl = gr.DataLoader( test_ugr_ds, batch_size=bs * 2, collate_fn=gr.collate_batch )
 
-    return train_dl, test_gr_dl, test_ugr_dl
+    return train_dl, test_gr_dl, test_ugr_dl, len( ggen )
 
 
 def g1_dls( bs=4 ):
-    """Returns triple of DataLoaders: (train, test_gr, test_ugr)"""
+    """
+    Returns tuple of DataLoaders and the amount of
+    stimuli in g1: (train, test_gr, test_ugr, len( g1 ) )
+    """
 
     ggen = gr.GrammarGen( g1() )
 
@@ -43,7 +49,7 @@ def g1_dls( bs=4 ):
     test_ugr_ds = gr.SequenceDataset( test_ugr_seqs )
     test_ugr_dl = gr.DataLoader( test_ugr_ds, batch_size=bs * 2, collate_fn=gr.collate_batch )
 
-    return train_dl, test_gr_dl, test_ugr_dl
+    return train_dl, test_gr_dl, test_ugr_dl, len( ggen )
 
 
 def g0():
