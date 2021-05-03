@@ -60,7 +60,7 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 
-def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5, FILENAME='aa', check_dls=None):
+def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio=0.5, FILENAME='aa', check_dls=None, stepsize=5):
     """
     Fits model on train data, printing val and train loss
 
@@ -69,6 +69,8 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
         will be evaluted with its loss function.
         If given fit returns additional list with tensors containing
         evaluation results for every epoch
+    stepsize : int
+        how often check_dls will be evaluated
     """
 
     best_val_loss = float('inf')
@@ -100,8 +102,9 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
         print(f'\tTrain Loss: {train_loss:.5f} |  Val. Loss: {valid_loss:.5f}')
 
         if check_dls is not None:
-            for i, ( dl, dl_loss_func ) in enumerate( check_dls ):
-                hist_check[i][epoch] = evaluate( model, dl_loss_func, dl )
+            if epoch % stepsize == 0:
+                for i, ( dl, dl_loss_func ) in enumerate( check_dls ):
+                    hist_check[i][epoch] = evaluate( model, dl_loss_func, dl )
 
     if check_dls is None:
         return hist_train, hist_valid
