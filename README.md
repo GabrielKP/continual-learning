@@ -54,7 +54,7 @@ incorrect: ['A','G','F','D','C'],
 
 ### Grammatical
 
-Taken from A.S. Reuber, 1969:
+Original from A.S. Reuber, 1969:
 
 Grammar 1:
 <img src="data/grammar-1.png" alt="grammar" width="400"/>
@@ -62,25 +62,36 @@ Grammar 1:
 Grammar 2:
 <img src="data/grammar-2.png" alt="grammar" width="400"/>
 
+- Every token on average the same information
+- Both Grammars exactly 43 different paths from start to finish with length <= 8
 
-Taken from Gomez & Schwaneveldt, 1994
 
-Grammar 3:
+Converted from Gomez & Schwaneveldt, 1994
+
+Grammar 1:
 <img src="data/grammar-3.png" alt="grammar" width="400"/>
 
-Grammar 4:
+Grammar 2:
 <img src="data/grammar-4.png" alt="grammar" width="400"/>
 
 ### (Un)grammatical sequence constraints
 
-Vokey-Brooks:
+Vokey-Brooks-1992:
 - 3 to 7 letter seqs
 - different seqs at least edit distance 2
 - balanced seq length, balanced usage of transitions
 - ug seqs differed in only one position (edit distance 1)
-Lotz-Kinder:
+- Accuracy in Recognition Task 72%
+
+Lotz-Kinder-2006:
 - same as Vokey-Brooks
-- non-transfer accuracy: 56% (still significant)
+- non-transfer accuracy: 56% (still significant) transfer: 54%
+
+Gomez-Schvaneveldt-1994:
+- Letter repetitions limited to two
+- No ungrammaticalities at beginning or end of seq
+- Ungrammaticalities: insertion of 'illegal pair' into string, insertion of 'legal pair' into wrong location
+- do not use hits but sensitivity as measure..
 
 
 ## Adhoc
