@@ -1,6 +1,6 @@
 # Training functions
 
-from losses import cutStartAndEndToken
+from losses import allOrNoneloss, cutStartAndEndToken
 import torch
 import time
 import numpy as np
@@ -50,6 +50,8 @@ def evaluate(model, loss_func, test_dl):
         losses, nums = zip(
             *[loss_batch( model, loss_func, labels, seqs, teacher_forcing_ratio=0 ) for labels, seqs in test_dl]
         )
+        if loss_func == allOrNoneloss:
+            return np.sum( losses )
         return np.sum( np.multiply( losses, nums ) ) / np.sum( nums )
 
 
