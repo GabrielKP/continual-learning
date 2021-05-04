@@ -166,13 +166,20 @@ def plotMultipleHist( hist_tensors, labels, stepsize=5, sublabels=None, ylims=No
 
 
 def visual_eval(model, test_dl):
+    ret = []
+    i = 0
     model.eval()
     with torch.no_grad():
         for labels, seqs in test_dl:
             output = model( labels, seqs, teacher_forcing_ratio=0 )
-            # print( output )
+
             for b, seq in enumerate( seqs ):
                 prediction = output[b].argmax(-1)
                 trgtlist = seq.tolist()[1:-1]
                 predlist = cutStartAndEndToken( prediction.tolist() )
-                print( f'Same: {trgtlist == predlist} Truth: {trgtlist} - Pred: {predlist}' )
+                same = trgtlist == predlist
+                print( f'Same: {same} Truth: {trgtlist} - Pred: {predlist}' )
+                if not same:
+                    ret.append( i )
+                i += 1
+    return ret
