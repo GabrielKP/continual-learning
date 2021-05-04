@@ -59,7 +59,7 @@ def main():                     # Best values so far
     # Load best model
     model.load_state_dict( torch.load( SAVENAME ) )
 
-    sublabels = ( "Test", "Training-Correct", "Training-Incorrect")
+    sublabels = ( "Training", "Test-Correct", "Test-Incorrect")
     ylims = ( [0,len( g.g1_train() )], [0,len( g.g1_test_gr() )], [0,len( g.g1_test_ugr() )] )
     plotMultipleHist( ( hist_check_dls1, ), ("Normal",), stepsize, sublabels, ylims )
     return
