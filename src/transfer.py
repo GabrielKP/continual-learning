@@ -10,16 +10,16 @@ from torch import optim
 
 def main():                     # Best values so far
     bs = 4                      # 4
-    epochs = 1500                # 800 / 2000 for 1 layer
-    lr = 0.01                   # 0.1
+    epochs = 1000                # 800 / 2000 for 1 layer
+    lr = 0.001                   # 0.1
     teacher_forcing_ratio = 0.5 # 0.5
     use_embedding = True        # True
     bidirectional = True        # True
     hidden_dim = 4              # 3
-    intermediate_dim = 500      # 200
-    n_layers = 1                # 1
+    intermediate_dim = 1000      # 200
+    n_layers = 2                # 1
     dropout = 0.5
-    start_from_scratch = True
+    start_from_scratch = False
     grammaticality_bias = 0
     stepsize = 10
     punishment = 1

@@ -13,9 +13,9 @@ def main():
     lr = 0.0001                         # Learning rate
     use_embedding = True                # Embedding Yes/No
     bidirectional = True                # bidirectional lstm layer Yes/o
-    hidden_dim = 3                      # Lstm Neurons
-    intermediate_dim = 200              # Intermediate Layer Neurons
-    n_layers = 1                        # Lstm Layers
+    hidden_dim = 4                      # Lstm Neurons
+    intermediate_dim = 1000              # Intermediate Layer Neurons
+    n_layers = 2                        # Lstm Layers
     dropout = 0.5
     grammaticality_bias = 0
     punishment = 0
@@ -36,6 +36,7 @@ def main():
     print( '\nTest - Grammatical' )
     visual_eval( model, g1_test_gr )
     print( evaluate( model, loss_func, g1_test_gr ) )
+    print( evaluate( model, allOrNoneloss, g1_test_gr ) )
 
     print( '\nTest - Ungrammatical' )
     visual_eval( model, g1_test_ugr )
