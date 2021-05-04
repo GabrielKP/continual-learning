@@ -254,8 +254,8 @@ def main():                     # Best values so far
     punishment = 1
     # 4.pt 200 5 3
     # 5.pt 100 5 3
-    LOADNAME = 'models/last-training1.pt'
-    SAVENAME = 'models/last-training1.pt'
+    LOADNAME = '../models/last-training1.pt'
+    SAVENAME = '../models/last-training1.pt'
     # Grammar
     ggen = GrammarGen()
 

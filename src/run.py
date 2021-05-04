@@ -8,7 +8,7 @@ from grammar import GrammarGen, DataLoader, SequenceDataset, collate_batch
 
 def main():
 
-    LOADNAME = 'models/lt-g1.pt'
+    LOADNAME = '../models/lt-g1.pt'
     bs = 4
     lr = 0.0001                         # Learning rate
     use_embedding = True                # Embedding Yes/No

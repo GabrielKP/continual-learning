@@ -21,8 +21,8 @@ def main():                     # Best values so far
     punishment = 1
     conditions = ( ( 'fc_out', ), ( 'fc_one', ), ( 'embed', ), )
 
-    LOADNAME = 'models/last-training_shifted.pt'
-    SAVENAME = 'models/last-training_shifted.pt'
+    LOADNAME = '../models/last-training_shifted.pt'
+    SAVENAME = '../models/last-training_shifted.pt'
 
     # Grammar
     ggen = GrammarGen()
