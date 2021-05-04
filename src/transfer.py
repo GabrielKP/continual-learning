@@ -25,8 +25,8 @@ def main():                     # Best values so far
     punishment = 1
     conditions = ( ( 'fc_out', ), ( 'fc_one', ), ( 'embed', ), )
 
-    LOADNAME = 'models/lt-g1.pt'
-    SAVENAME = 'models/lt-g1.pt'
+    LOADNAME = '../models/lt-g1.pt'
+    SAVENAME = '../models/lt-g1.pt'
 
     # Grammar
     ggen = GrammarGen( g.g1() )
