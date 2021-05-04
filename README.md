@@ -126,7 +126,7 @@ CP -> {(C) + (G)}
 {} == xor
 ```
 
-### New Grammar (old version)
+### Grammar 3 (ad hoc)
 
 5 Stimuli: A C D G F
 
