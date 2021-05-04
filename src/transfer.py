@@ -25,8 +25,11 @@ def main():                     # Best values so far
     punishment = 1
     conditions = ( ( 'fc_out', ), ( 'fc_one', ), ( 'embed', ), )
 
-    LOADNAME = '../models/lt-g1.pt'
-    SAVENAME = '../models/lt-g1.pt'
+    title = f'AE-{bidirectional}-{hidden_dim}-{n_layers}-{intermediate_dim}'
+    prefix = 'g1'
+    LOADNAME = 'models/autosave/' + prefix + title + '.pt'
+    SAVENAME = 'models/autosave/' + prefix + title + '.pt'
+    figpath = 'plots/autosave/' + prefix + title + '.png'
 
     # Grammar
     ggen = GrammarGen( g.g1() )
@@ -61,7 +64,7 @@ def main():                     # Best values so far
 
     sublabels = ( "Training", "Test-Correct", "Test-Incorrect")
     ylims = ( [0,len( g.g1_train() )], [0,len( g.g1_test_gr() )], [0,len( g.g1_test_ugr() )] )
-    plotMultipleHist( ( hist_check_dls1, ), ("Normal",), stepsize, sublabels, ylims )
+    plotMultipleHist( ( hist_check_dls1, ), ("Normal",), stepsize, sublabels, ylims, title, figpath )
     return
 
     # Reinit Parameters

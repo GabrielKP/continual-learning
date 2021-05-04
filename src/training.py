@@ -127,7 +127,7 @@ def plotHist( *hist_tuples, stepsize=5 ):
     plt.show()
 
 
-def plotMultipleHist( hist_tensors, labels, stepsize=5, sublabels=None, ylims=None ):
+def plotMultipleHist( hist_tensors, labels, stepsize=5, sublabels=None, ylims=None, title=None, path=None ):
     """
     hist_tensors expected in following form:
     ( [label1_plotdata1, label1_plotdata2, ...], [ label2_plotdata1, label2_plotdata2, ... ], ...)
@@ -157,7 +157,11 @@ def plotMultipleHist( hist_tensors, labels, stepsize=5, sublabels=None, ylims=No
             ax.set_title( sublabels[x//2] )
 
     ax.legend( labels )
+    if title is not None:
+        plt.suptitle( title )
     fig.tight_layout()
+    if path is not None:
+        plt.savefig( path )
     plt.show()
 
 
