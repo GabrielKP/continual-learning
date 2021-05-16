@@ -14,10 +14,10 @@ def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=No
     labels = seqs
 
     # Get model output
-    output = model( labels, seqs, teacher_forcing_ratio )
+    output = model(labels, seqs, teacher_forcing_ratio)
 
     # Compute loss
-    loss = loss_func( output, labels )
+    loss = loss_func(output, labels)
 
     if opt is not None:
         loss.backward()
@@ -25,7 +25,7 @@ def loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0.5, opt=No
         opt.step()
         opt.zero_grad()
 
-    return loss.item(), len( labels )
+    return loss.item(), len(labels)
 
 
 def train(model, train_dl, loss_func, opt, teacher_forcing_ratio):
@@ -37,7 +37,8 @@ def train(model, train_dl, loss_func, opt, teacher_forcing_ratio):
     epoch_num_seqs = 0
 
     for labels, seqs in train_dl:
-        batch_loss, batch_num_seqs = loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio, opt)
+        batch_loss, batch_num_seqs = loss_batch(
+            model, loss_func, labels, seqs, teacher_forcing_ratio, opt)
         epoch_loss += batch_loss * batch_num_seqs
         epoch_num_seqs += batch_num_seqs
 
@@ -48,16 +49,16 @@ def evaluate(model, loss_func, test_dl):
     model.eval()
     with torch.no_grad():
         losses, nums = zip(
-            *[loss_batch( model, loss_func, labels, seqs, teacher_forcing_ratio=0 ) for labels, seqs in test_dl]
+            *[loss_batch(model, loss_func, labels, seqs, teacher_forcing_ratio=0) for labels, seqs in test_dl]
         )
         if loss_func == allOrNoneloss:
-            return np.sum( losses )
-        return np.sum( np.multiply( losses, nums ) ) / np.sum( nums )
+            return np.sum(losses)
+        return np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
 
 def epoch_time(start_time, end_time):
     elapsed_time = end_time - start_time
-    elapsed_mins = int( elapsed_time / 60 )
+    elapsed_mins = int(elapsed_time / 60)
     elapsed_secs = elapsed_time - (elapsed_mins * 60)
     return elapsed_mins, elapsed_secs
 
@@ -76,25 +77,26 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
     """
 
     best_val_loss = float('inf')
-    hist_valid = torch.empty( epochs )
-    hist_train = torch.empty( epochs )
+    hist_valid = torch.empty(epochs)
+    hist_train = torch.empty(epochs)
     if check_dls is not None:
         hist_check = []
-        for _ in range( len( check_dls ) ):
-            hist_check.append( torch.empty( epochs ) )
+        for _ in range(len(check_dls)):
+            hist_check.append(torch.empty(epochs))
 
     for epoch in range(epochs):
 
         start_time = time.time()
 
-        train_loss = train(model, train_dl, loss_func, opt, teacher_forcing_ratio)
+        train_loss = train(model, train_dl, loss_func,
+                           opt, teacher_forcing_ratio)
         valid_loss = evaluate(model, loss_func, valid_dl)
 
         end_time = time.time()
 
         if valid_loss < best_val_loss:
             best_val_loss = valid_loss
-            torch.save( model.state_dict(), FILENAME )
+            torch.save(model.state_dict(), FILENAME)
 
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
@@ -105,63 +107,64 @@ def fit(epochs, model, loss_func, opt, train_dl, valid_dl, teacher_forcing_ratio
 
         if check_dls is not None:
             if epoch % stepsize == 0:
-                for i, ( dl, dl_loss_func ) in enumerate( check_dls ):
-                    hist_check[i][epoch] = evaluate( model, dl_loss_func, dl )
+                for i, (dl, dl_loss_func) in enumerate(check_dls):
+                    hist_check[i][epoch] = evaluate(model, dl_loss_func, dl)
 
     if check_dls is None:
         return hist_train, hist_valid
     return hist_train, hist_valid, hist_check
 
 
-def plotHist( *hist_tuples, stepsize=5 ):
+def plotHist(*hist_tuples, stepsize=5):
     """
     example: plotHist( ( hist_valid1, 'Normal', ), ( hist_valid2, 'Shifted', ) )
     """
     labels = []
     #colors = ['blue', 'or']
     for history, label in hist_tuples:
-        xvals = range( 0, history.size(0), stepsize )
-        plt.plot( xvals, history[xvals] )
-        labels.append( label)
-    plt.legend( labels )
+        xvals = range(0, history.size(0), stepsize)
+        plt.plot(xvals, history[xvals])
+        labels.append(label)
+    plt.legend(labels)
     plt.show()
 
 
-def plotMultipleHist( hist_tensors, labels, stepsize=5, sublabels=None, ylims=None, title=None, path=None ):
+def plotMultipleHist(hist_tensors, labels, stepsize=5, sublabels=None, ylims=None, title=None, path=None):
     """
     hist_tensors expected in following form:
     ( [label1_plotdata1, label1_plotdata2, ...], [ label2_plotdata1, label2_plotdata2, ... ], ...)
     """
-    assert len( hist_tensors ) == len( labels ), "labels and different plots do not match"
+    assert len(hist_tensors) == len(
+        labels), "labels and different plots do not match"
 
-    n_figs = len( hist_tensors[0] )
-    n_difflines = len( hist_tensors )
+    n_figs = len(hist_tensors[0])
+    n_difflines = len(hist_tensors)
 
     fig = plt.figure()
-    for x in range( n_figs ):
-        ax = fig.add_subplot( n_figs// 2, 2, x + 1 )
-        for m in range( n_difflines ):
-            xvals = range( 0, hist_tensors[m][x].size(0), stepsize )
-            ax.plot( xvals, hist_tensors[m][x][xvals]  )
+    for x in range(n_figs):
+        ax = fig.add_subplot(n_figs // 2, 2, x + 1)
+        for m in range(n_difflines):
+            xvals = range(0, hist_tensors[m][x].size(0), stepsize)
+            ax.plot(xvals, hist_tensors[m][x][xvals])
 
-        if ylims is not None and ( x + 1 ) % 2 == 0:
+        if ylims is not None and (x + 1) % 2 == 0:
             a, b = ylims[x//2]
-            yticks = list( range( a, b, ( b - a )//3 ) ) + [b]
+            yticks = list(range(a, b, (b - a)//3)) + [b]
             # make sure last ytick does not overlap
             if yticks[-1] - yticks[-2] < 0.1 * b:
                 yticks.pop(-2)
-            ax.set_ylim( ( a, b ) )
-            ax.set_yticks( yticks )
+            ax.set_ylim((a, b))
+            ax.set_yticks(yticks)
 
         if sublabels is not None and x % 2 == 0:
-            ax.set_title( sublabels[x//2] )
+            ax.set_title(sublabels[x//2])
 
-    ax.legend( labels )
+    ax.legend(labels)
     if title is not None:
-        plt.suptitle( title )
+        plt.suptitle(title)
     fig.tight_layout()
     if path is not None:
-        plt.savefig( path )
+        plt.savefig(path)
     plt.show()
 
 
@@ -171,15 +174,15 @@ def visual_eval(model, test_dl):
     model.eval()
     with torch.no_grad():
         for labels, seqs in test_dl:
-            output = model( labels, seqs, teacher_forcing_ratio=0 )
+            output = model(labels, seqs, teacher_forcing_ratio=0)
 
-            for b, seq in enumerate( seqs ):
+            for b, seq in enumerate(seqs):
                 prediction = output[b].argmax(-1)
                 trgtlist = seq.tolist()[1:-1]
-                predlist = cutStartAndEndToken( prediction.tolist() )
+                predlist = cutStartAndEndToken(prediction.tolist())
                 same = trgtlist == predlist
-                print( f'Same: {same} Truth: {trgtlist} - Pred: {predlist}' )
+                print(f'Same: {same} Truth: {trgtlist} - Pred: {predlist}')
                 if not same:
-                    ret.append( i )
+                    ret.append(i)
                 i += 1
     return ret

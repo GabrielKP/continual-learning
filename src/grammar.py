@@ -14,7 +14,8 @@ PAD_TOKEN = 0   # ugly but works for now
 START_TOKEN = 1
 END_TOKEN = 2
 
-device = torch.device( 'cuda' if torch.cuda.is_available() else 'cpu' )
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 class GrammarGen():
     """
@@ -26,12 +27,12 @@ class GrammarGen():
       have same output
     """
 
-    def __init__(self, grammar=None ):
+    def __init__(self, grammar=None):
         if grammar is None:
             self.grammar = {
                 'START': ['A'],
-                'A': ['D','C1'],
-                'C1': ['G1','F'],
+                'A': ['D', 'C1'],
+                'C1': ['G1', 'F'],
                 'G1': ['F'],
                 'D': ['C1'],
                 'F': ['C2', 'END'],
@@ -46,8 +47,10 @@ class GrammarGen():
         """
         Creates Mapping from Stimulus to Output
         """
-        stimulusToOutput = { 'END': END_TOKEN, 'START': START_TOKEN, 'PAD': PAD_TOKEN }
-        cores = { 'END': END_TOKEN, 'START': START_TOKEN,'PAD': PAD_TOKEN } # keep track of same output letters
+        stimulusToOutput = {'END': END_TOKEN,
+                            'START': START_TOKEN, 'PAD': PAD_TOKEN}
+        cores = {'END': END_TOKEN, 'START': START_TOKEN,
+                 'PAD': PAD_TOKEN}  # keep track of same output letters
         i = 3
         for stimulus in self.grammar:
             if stimulus == 'START':
@@ -73,13 +76,15 @@ class GrammarGen():
             # Handle case where stimulus can be present twice or more in grammar
             if converted_stim in self.number_grammar:
                 # Merge different possibiliteis for stimsB
-                self.number_grammar[converted_stim].extend( [ self.stim2out[stim] for stim in stimsB ] )
+                self.number_grammar[converted_stim].extend(
+                    [self.stim2out[stim] for stim in stimsB])
                 # Make sure nothing is double
-                self.number_grammar[converted_stim] = list( set( self.number_grammar[converted_stim] ) )
+                self.number_grammar[converted_stim] = list(
+                    set(self.number_grammar[converted_stim]))
                 continue
 
-            self.number_grammar[converted_stim] = [ self.stim2out[stim] for stim in stimsB ]
-
+            self.number_grammar[converted_stim] = [
+                self.stim2out[stim] for stim in stimsB]
 
     def __len__(self):
         return len(self.cores)
@@ -87,7 +92,8 @@ class GrammarGen():
     def stim2seqs(self, stimuliSequences):
         seqs = []
         for label, stimulusSequence in stimuliSequences:
-            seqs.append( ( label, [ self.cores[stimulus] for stimulus in stimulusSequence ] ) )
+            seqs.append((label, [self.cores[stimulus]
+                        for stimulus in stimulusSequence]))
         return seqs
 
     def generate(self, n):
@@ -100,22 +106,22 @@ class GrammarGen():
             while current != 'END':
                 # Append current
                 if current != 'START':
-                    token.append( self.stim2out[current] )
+                    token.append(self.stim2out[current])
                 # Choose next
-                r = random.randint( 0, len( self.grammar[current] ) - 1 )
+                r = random.randint(0, len(self.grammar[current]) - 1)
                 current = self.grammar[current][r]
             # Check if seq is already inside
-            tokenhash = ''.join( [ str(x) for x in token ] )
+            tokenhash = ''.join([str(x) for x in token])
             if tokenhash not in hashtrack:
-                hashtrack.add( tokenhash )
-                ret.append( ( 1, token, ) )
+                hashtrack.add(tokenhash)
+                ret.append((1, token, ))
                 count += 1
 
         return ret
 
     def seqs2stim(self, seqs):
-        o2r = { v: k for k, v in self.cores.items() }
-        return [ [ o2r[stim] for stim in seq ] for _,seq in seqs ]
+        o2r = {v: k for k, v in self.cores.items()}
+        return [[o2r[stim] for stim in seq] for _, seq in seqs]
 
     def generateUngrammatical(self, n):
         pass
@@ -127,26 +133,27 @@ class GrammarGen():
         pass
 
 
-def shiftStimuli( ggen, seqs ):
+def shiftStimuli(ggen, seqs):
     """
     Creates shifted grammar
     """
-    new_vocab_size = 2 * len( ggen ) - 3 # PADTOKEN;STARTTOKEN;ENDTOKEN;
+    new_vocab_size = 2 * len(ggen) - 3  # PADTOKEN;STARTTOKEN;ENDTOKEN;
 
-    vocab_without_TOKENS = len( ggen ) - 3
+    vocab_without_TOKENS = len(ggen) - 3
     shifted_seqs = []
     for _, seq in seqs:
-        shifted_seqs.append( (1, [ stim + vocab_without_TOKENS for stim in seq if stim not in [ PAD_TOKEN, START_TOKEN, END_TOKEN ] ] ) )
+        shifted_seqs.append(
+            (1, [stim + vocab_without_TOKENS for stim in seq if stim not in [PAD_TOKEN, START_TOKEN, END_TOKEN]]))
 
     return shifted_seqs, new_vocab_size
 
 
-class SequenceDataset( Dataset ):
+class SequenceDataset(Dataset):
     """
     Dataset for Sequences
     """
 
-    def __init__( self, seqs ):
+    def __init__(self, seqs):
         """
         https://pytorch.org/tutorials/beginner/data_loading_tutorial.html
         Args:
@@ -156,7 +163,7 @@ class SequenceDataset( Dataset ):
         self.seqs = seqs
 
     def __len__(self):
-        return len( self.seqs )
+        return len(self.seqs)
 
     def __getitem__(self, idx):
         return self.seqs[idx]
@@ -171,21 +178,22 @@ def collate_batch(batch):
     """
     label_list, seq_list = [], []
     for (_label, _seq) in batch:
-        label_list.append( _label )
+        label_list.append(_label)
         _seq = [1] + _seq + [2]
-        processed_seq = torch.tensor( _seq, dtype=torch.int32 )
-        seq_list.append( processed_seq )
-    label_list = torch.tensor( label_list, dtype=torch.float )
-    return label_list.to( device ), seq_list
+        processed_seq = torch.tensor(_seq, dtype=torch.int32)
+        seq_list.append(processed_seq)
+    label_list = torch.tensor(label_list, dtype=torch.float)
+    return label_list.to(device), seq_list
 
 
 def get_dl(bs, sequences, shuffle=True):
-    train_ds = SequenceDataset( sequences )
-    return DataLoader( train_ds, batch_size=bs, shuffle=shuffle, collate_fn=collate_batch )
+    train_ds = SequenceDataset(sequences)
+    return DataLoader(train_ds, batch_size=bs, shuffle=shuffle, collate_fn=collate_batch)
 
 
 def get_data(train_ds, valid_ds, bs):
     return (
-        DataLoader( train_ds, batch_size=bs, shuffle=True, collate_fn=collate_batch ),
-        DataLoader( valid_ds, batch_size=bs * 2, collate_fn=collate_batch ),
+        DataLoader(train_ds, batch_size=bs, shuffle=True,
+                   collate_fn=collate_batch),
+        DataLoader(valid_ds, batch_size=bs * 2, collate_fn=collate_batch),
     )
