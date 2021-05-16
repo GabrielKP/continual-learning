@@ -11,21 +11,21 @@ from torch import optim
 def main():                     # Best values so far
     bs = 4                      # 4
     epochs = 1000                # 800 / 2000 for 1 layer
-    lr = 0.001                   # 0.1
+    lr = 0.01                   # 0.1
     teacher_forcing_ratio = 0.5 # 0.5
     use_embedding = True        # True
     bidirectional = True        # True
-    hidden_dim = 4              # 3
-    intermediate_dim = 1000      # 200
-    n_layers = 2                # 1
+    hidden_dim = 30              # 3
+    intermediate_dim = 500      # 200
+    n_layers = 1                # 1
     dropout = 0.5
-    start_from_scratch = False
+    start_from_scratch = True
     grammaticality_bias = 0
     stepsize = 10
     punishment = 1
     conditions = ( ( 'fc_out', ), ( 'fc_one', ), ( 'embed', ), )
 
-    title = f'AE-{bidirectional}-{hidden_dim}-{n_layers}-{intermediate_dim}'
+    title = f'AE-{int(bidirectional)}-{hidden_dim}-{n_layers}-{intermediate_dim}'
     prefix = 'g1'
     LOADNAME = 'models/autosave/' + prefix + title + '.pt'
     SAVENAME = 'models/autosave/' + prefix + title + '.pt'
@@ -33,11 +33,6 @@ def main():                     # Best values so far
 
     # Grammar
     ggen = GrammarGen( g.g1() )
-
-
-    # seqs = ggen.seqs2stim( ggen.generate( 5 ) )
-
-    # print( [ ''.join( seq ) for seq in seqs ] )
 
     g1_train, g1_test_gr, g1_test_ugr, g1_size = g.g1_dls( bs )
 
@@ -48,6 +43,8 @@ def main():                     # Best values so far
     # Load pretrained models weights
     if  not start_from_scratch:
         model.load_state_dict( torch.load( LOADNAME ) )
+
+    opt = optim.Adam( filter(lambda p: p.requires_grad, model.parameters()), lr=lr )
 
     # Loss Function
     loss_func = SequenceLoss( ggen, grammaticality_bias=grammaticality_bias, punishment=punishment )
