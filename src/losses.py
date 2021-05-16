@@ -79,7 +79,7 @@ class SequenceLoss():
 
                 seq_loss[i] = ( errorvalues.sum() * self.punishment ).pow( 2 )
 
-            GRloss[b] = seq_loss.mean()
+            GRloss[b] = seq_loss.sum()
 
         if self.gbias == 0:
             return CEloss.mean()
