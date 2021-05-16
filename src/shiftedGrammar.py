@@ -1,4 +1,6 @@
 
+import grammars as g
+
 from grammar import *
 from autoencoder import get_model, freezeParameters, unfreezeParameters, reInitParameters
 from training import fit, plotMultipleHist
@@ -25,8 +27,13 @@ def main():                     # Best values so far
     SAVENAME = '../models/last-training_shifted.pt'
 
     # Grammar
-    ggen = GrammarGen()
+    ggen = GrammarGen( g.g3() )
 
+    print( ggen.grammar )
+    print( ggen.stim2out )
+    print( ggen.number_grammar )
+
+    return
     # Note: BATCH IS IN FIRST DIMENSION
     # Train
     train_seqs = ggen.stim2seqs( get_trainstimuliSequence() )
