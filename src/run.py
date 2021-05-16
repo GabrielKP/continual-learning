@@ -8,14 +8,14 @@ from grammar import GrammarGen, DataLoader, SequenceDataset, collate_batch
 
 def main():
 
-    LOADNAME = '../models/lt-g1.pt'
+    LOADNAME = 'models/autosave/g1AE-1-5-1-200.pt'
     bs = 4
     lr = 0.0001                         # Learning rate
     use_embedding = True                # Embedding Yes/No
     bidirectional = True                # bidirectional lstm layer Yes/o
-    hidden_dim = 4                      # Lstm Neurons
-    intermediate_dim = 1000              # Intermediate Layer Neurons
-    n_layers = 2                        # Lstm Layers
+    hidden_dim = 5                      # Lstm Neurons
+    intermediate_dim = 200              # Intermediate Layer Neurons
+    n_layers = 1                        # Lstm Layers
     dropout = 0.5
     grammaticality_bias = 0
     punishment = 0
@@ -30,18 +30,18 @@ def main():
 
     ### Test
     print( '\nTrain' )
-    visual_eval( model, g1_train )
+    print( visual_eval( model, g1_train ) )
     print( evaluate( model, loss_func, g1_test_gr ) )
 
     print( '\nTest - Grammatical' )
-    visual_eval( model, g1_test_gr )
+    print( visual_eval( model, g1_test_gr ) )
     print( evaluate( model, loss_func, g1_test_gr ) )
     print( evaluate( model, allOrNoneloss, g1_test_gr ) )
 
-    print( '\nTest - Ungrammatical' )
-    visual_eval( model, g1_test_ugr )
-    print( evaluate( model, loss_func, g1_test_ugr ) )
-    print( evaluate( model, allOrNoneloss, g1_test_ugr ) )
+    # print( '\nTest - Ungrammatical' )
+    # visual_eval( model, g1_test_ugr )
+    # print( evaluate( model, loss_func, g1_test_ugr ) )
+    # print( evaluate( model, allOrNoneloss, g1_test_ugr ) )
 
 
 if __name__ == "__main__":
