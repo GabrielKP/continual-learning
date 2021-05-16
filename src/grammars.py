@@ -360,7 +360,7 @@ def g2():
 
 
 def g2_train():
-    """Returns train Sequences for g1"""
+    """Returns train Sequences for g2"""
     return [
         ( 1, ['#','Z','Z','S','W','#'], ),
         ( 1, ['#','Z','Z','S','S','W','#'], ),
