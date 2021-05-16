@@ -123,6 +123,9 @@ class GrammarGen():
     def transitionProbabilities(self):
         pass
 
+    def checkGrammaticality(self, seq):
+        pass
+
 
 def shiftStimuli( ggen, seqs ):
     """
