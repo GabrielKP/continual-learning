@@ -171,6 +171,8 @@ def plotMultipleHist(hist_tensors, labels, stepsize=5, sublabels=None, ylims=Non
 def visual_eval(model, test_dl, ggen=None):
     ret = []
     i = 0
+    wrong_ugr = 0
+    wrong = 0
     model.eval()
     with torch.no_grad():
         for labels, seqs in test_dl:
@@ -188,7 +190,13 @@ def visual_eval(model, test_dl, ggen=None):
                     trgtlist = ggen.seqs2stim([trgtlist])[0]
                     predlist = ggen.seqs2stim([predlist])[0]
                     print(f'Same:{same:2} Gramm:{gramm:2} Truth: {trgtlist} - Pred: {predlist}')
+                    if not same:
+                        wrong += 1
+                        if not gramm:
+                            wrong_ugr += 1
                 if not same:
                     ret.append(i)
                 i += 1
+        if ggen is not None:
+            print(f"Wrong {wrong:2}/{i:2} - Wrong-ugr {wrong_ugr:2}/{wrong:2}")
     return ret
