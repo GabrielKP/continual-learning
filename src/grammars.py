@@ -51,7 +51,7 @@ def g1_dls(bs=4):
         test_gr_ds, batch_size=bs, collate_fn=gr.collate_batch)
 
     # test ugr
-    test_ugr_seqs = ggen.stim2seqs(g1_test_ugr())
+    test_ugr_seqs = ggen.stim2seqs(g1_test_ugr_balanced())
     test_ugr_ds = gr.SequenceDataset(test_ugr_seqs)
     test_ugr_dl = gr.DataLoader(
         test_ugr_ds, batch_size=bs * 2, collate_fn=gr.collate_batch)
@@ -215,6 +215,29 @@ def g1_test_gr():
         (1, ['N', 'N', 'P', 'S', 'P', 'N', 'Z', ], ),
         (1, ['N', 'P', 'N', 'P', 'S', 'P', 'N', 'Z', ], ),
         (1, ['W', 'W', 'S', 'P', 'P', 'N', 'P', 'Z', ], ),
+    ]
+
+
+def g1_test_ugr_balanced():
+    """Returns same amount of ungrammatical test Sequences for g1 as g1_test_gr"""
+    return [
+        (0, ['W', 'S', 'Z', ], ),
+        (0, ['W', 'W', 'S', 'P', 'W', 'S', 'N', 'Z', ], ),
+        (0, ['W', 'S', 'W', 'P', 'P', 'N', 'Z', ], ),
+        (0, ['W', 'S', 'W', 'S', 'Z', ], ),
+        (0, ['W', 'N', 'P', 'S', 'P', 'P', 'N', 'Z', ], ),
+        (0, ['N', 'P', 'N', 'S', 'P', 'N', 'Z', ], ),
+        (0, ['N', 'N', 'Z', 'S', 'P', 'S', 'N', 'Z', ], ),
+        (0, ['N', 'W', 'S', 'W', 'Z', ], ),
+        (0, ['N', 'P', 'N', 'W', 'Z', ], ),  # NPP, end, NPL start
+        (0, ['W', 'S', 'S', 'N', 'Z', ], ),
+        (0, ['W', 'S', 'P', 'S', 'P', 'N', 'Z', ], ),
+        (0, ['W', 'W', 'S', 'P', 'P', 'Z', ], ),
+        (0, ['W', 'S', 'S', 'N', 'P', 'N', 'P', 'Z', ], ),
+        (0, ['N', 'P', 'P', 'S', 'N', 'Z', ], ),
+        (0, ['N', 'P', 'S', 'S', 'P', 'S', 'N', 'Z', ], ),
+        (0, ['N', 'N', 'P', 'S', 'N', 'N', 'P', 'Z', ], ),
+        (0, ['N', 'P', 'N', 'P', 'N', 'Z', ], ),
     ]
 
 
