@@ -97,9 +97,9 @@ class GrammarGen():
 
     def stim2seqs(self, stimuliSequences):
         seqs = []
-        for label, stimulusSequence in stimuliSequences:
-            seqs.append((label, [self.cores[stimulus]
-                        for stimulus in stimulusSequence]))
+        for stimulusSequence in stimuliSequences:
+            seqs.append([self.cores[stimulus]
+                        for stimulus in stimulusSequence])
         return seqs
 
     def generate(self, n):
@@ -120,13 +120,13 @@ class GrammarGen():
             tokenhash = ''.join([str(x) for x in token])
             if tokenhash not in hashtrack:
                 hashtrack.add(tokenhash)
-                ret.append((1, token, ))
+                ret.append((token, ))
                 count += 1
 
         return ret
 
     def seqs2stim(self, seqs):
-        return [[self.out2stim[nbr] for nbr in seq] for _, seq in seqs]
+        return [[self.out2stim[nbr] for nbr in seq] for seq in seqs]
 
     def generateUngrammatical(self, n):
         pass
@@ -150,8 +150,9 @@ class GrammarGen():
             return itertools.chain(*ret)
         return set([tuple(seq) for seq in genAllHelp([], 'START')])
 
-    def isGrammatical(self, seqs, maxlen):
+    def isGrammatical(self, seqs):
         """Check for grammaticality for a list of sequences"""
+        maxlen = max([len(seq) for seq in seqs])
         if self.grammCheckMaxLen < maxlen:
             self.allGrammatical = self.generateAllGrammatical(maxlen)
             self.grammCheckMaxLen = maxlen
@@ -167,9 +168,9 @@ def shiftStimuli(ggen, seqs):
 
     vocab_without_TOKENS = len(ggen) - 3
     shifted_seqs = []
-    for _, seq in seqs:
+    for seq in seqs:
         shifted_seqs.append(
-            (1, [stim + vocab_without_TOKENS for stim in seq if stim not in [PAD_TOKEN, START_TOKEN, END_TOKEN]]))
+            ([stim + vocab_without_TOKENS for stim in seq if stim not in [PAD_TOKEN, START_TOKEN, END_TOKEN]]))
 
     return shifted_seqs, new_vocab_size
 
@@ -203,8 +204,8 @@ def collate_batch(batch):
     2. smash all sequences together into a list
     """
     label_list, seq_list = [], []
-    for (_label, _seq) in batch:
-        label_list.append(_label)
+    for (_seq) in batch:
+        label_list.append(-1)
         _seq = [1] + _seq + [2]
         processed_seq = torch.tensor(_seq, dtype=torch.int32)
         seq_list.append(processed_seq)
