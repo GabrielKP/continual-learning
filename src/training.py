@@ -168,7 +168,7 @@ def plotMultipleHist(hist_tensors, labels, stepsize=5, sublabels=None, ylims=Non
     plt.show()
 
 
-def visual_eval(model, test_dl):
+def visual_eval(model, test_dl, ggen=None):
     ret = []
     i = 0
     model.eval()
@@ -181,7 +181,13 @@ def visual_eval(model, test_dl):
                 trgtlist = seq.tolist()[1:-1]
                 predlist = cutStartAndEndToken(prediction.tolist())
                 same = trgtlist == predlist
-                print(f'Same: {same} Truth: {trgtlist} - Pred: {predlist}')
+                if ggen is None:
+                    print(f'Same:{same:2} Truth: {trgtlist} - Pred: {predlist}')
+                else:
+                    gramm = ggen.isGrammatical([predlist])[0]
+                    trgtlist = ggen.seqs2stim([trgtlist])[0]
+                    predlist = ggen.seqs2stim([predlist])[0]
+                    print(f'Same:{same:2} Gramm:{gramm:2} Truth: {trgtlist} - Pred: {predlist}')
                 if not same:
                     ret.append(i)
                 i += 1
