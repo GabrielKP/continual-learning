@@ -3,8 +3,10 @@
 # TODO: unconstraint max length
 # TODO: grammaticality loss fix
 
+import itertools
 import random
 import torch
+import copy
 
 from torch import nn
 from torch.utils.data.dataset import Dataset
@@ -132,8 +134,29 @@ class GrammarGen():
     def transitionProbabilities(self):
         pass
 
-    def checkGrammaticality(self, seq):
-        pass
+    def generateAllGrammatical(self, maxlen=float('inf')):
+        def genAllHelp(seq, current):
+            if current == 'END':
+                return [seq]
+            if len(seq) >= maxlen:
+                return []
+            # Append Current
+            if current != 'START':
+                seq.append(self.stim2nbr[current])
+            # Generate next possibilities
+            options = range(len(self.grammar[current]))
+            ret = [(genAllHelp(copy.copy(seq), self.grammar[current][i]))
+                   for i in options]
+            return itertools.chain(*ret)
+        return set([tuple(seq) for seq in genAllHelp([], 'START')])
+
+    def isGrammatical(self, seqs, maxlen):
+        """Check for grammaticality for a list of sequences"""
+        if self.grammCheckMaxLen < maxlen:
+            self.allGrammatical = self.generateAllGrammatical(maxlen)
+            self.grammCheckMaxLen = maxlen
+
+        return [tuple(seq) in self.allGrammatical for seq in seqs]
 
 
 def shiftStimuli(ggen, seqs):
