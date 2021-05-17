@@ -67,7 +67,7 @@ def main():                     # Best values so far
 
     sublabels = ("Training", "Test-Correct", "Test-Incorrect")
     ylims = ([0, len(g.g1_train())], [0, len(g.g1_test_gr())],
-             [0, len(g.g1_test_ugr())])
+             [0, len(g.g1_test_ugr_balanced())])
     plotMultipleHist((hist_check_dls1, ), ("Normal",),
                      stepsize, sublabels, ylims, title, figpath)
     return
