@@ -47,7 +47,7 @@ class GrammarGen():
         """
         Creates Mapping from Stimulus to Output
         """
-        stimulusToOutput = {'END': END_TOKEN,
+        stimulusToNumber = {'END': END_TOKEN,
                             'START': START_TOKEN, 'PAD': PAD_TOKEN}
         cores = {'END': END_TOKEN, 'START': START_TOKEN,
                  'PAD': PAD_TOKEN}  # keep track of same output letters
@@ -59,10 +59,10 @@ class GrammarGen():
             if core not in cores:
                 cores[core] = i
                 i += 1
-            stimulusToOutput[stimulus] = cores[core]
+            stimulusToNumber[stimulus] = cores[core]
 
         # Mapping Stimulus to Number (C1 -> 4, C2 -> 4, A -> 3)
-        self.stim2out = stimulusToOutput
+        self.stim2nbr = stimulusToNumber
         # Mapping Core-Stimulus to Number (C -> 4, A -> 3)
         self.cores = cores
         # Convert Grammar to stimulus Numbers
@@ -71,20 +71,24 @@ class GrammarGen():
         # rules in grammar are in form stimA -> simsB with stimsB being a list
         for stimA, stimsB in self.grammar.items():
 
-            converted_stim = self.stim2out[stimA]
+            converted_stim = self.stim2nbr[stimA]
 
             # Handle case where stimulus can be present twice or more in grammar
             if converted_stim in self.number_grammar:
                 # Merge different possibiliteis for stimsB
                 self.number_grammar[converted_stim].extend(
-                    [self.stim2out[stim] for stim in stimsB])
+                    [self.stim2nbr[stim] for stim in stimsB])
                 # Make sure nothing is double
                 self.number_grammar[converted_stim] = list(
                     set(self.number_grammar[converted_stim]))
                 continue
 
             self.number_grammar[converted_stim] = [
-                self.stim2out[stim] for stim in stimsB]
+                self.stim2nbr[stim] for stim in stimsB]
+
+        self.out2stim = {v: k for k, v in self.cores.items()}
+        # variable to check how many sequences have been generated for the grammaticality test
+        self.grammCheckMaxLen = -1
 
     def __len__(self):
         return len(self.cores)
@@ -106,7 +110,7 @@ class GrammarGen():
             while current != 'END':
                 # Append current
                 if current != 'START':
-                    token.append(self.stim2out[current])
+                    token.append(self.stim2nbr[current])
                 # Choose next
                 r = random.randint(0, len(self.grammar[current]) - 1)
                 current = self.grammar[current][r]
@@ -120,8 +124,7 @@ class GrammarGen():
         return ret
 
     def seqs2stim(self, seqs):
-        o2r = {v: k for k, v in self.cores.items()}
-        return [[o2r[stim] for stim in seq] for _, seq in seqs]
+        return [[self.out2stim[nbr] for nbr in seq] for _, seq in seqs]
 
     def generateUngrammatical(self, n):
         pass
