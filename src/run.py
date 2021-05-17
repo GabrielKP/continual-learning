@@ -20,8 +20,9 @@ def main():
     dropout = 0.5
     grammaticality_bias = 0
     punishment = 0
-    loss_func = SequenceLoss(GrammarGen(
-        g.g1()), grammaticality_bias=grammaticality_bias, punishment=punishment)
+    ggen = GrammarGen(g.g1())
+    loss_func = SequenceLoss(
+        ggen, grammaticality_bias=grammaticality_bias, punishment=punishment)
 
     g1_train, g1_test_gr, g1_test_ugr, g1_size = g.g1_dls(bs)
 
@@ -33,11 +34,11 @@ def main():
 
     # Test
     print('\nTrain')
-    print(visual_eval(model, g1_train))
+    print(visual_eval(model, g1_train, ggen))
     print(evaluate(model, loss_func, g1_test_gr))
 
     print('\nTest - Grammatical')
-    print(visual_eval(model, g1_test_gr))
+    print(visual_eval(model, g1_test_gr, ggen))
     print(evaluate(model, loss_func, g1_test_gr))
     print(evaluate(model, allOrNoneloss, g1_test_gr))
 
