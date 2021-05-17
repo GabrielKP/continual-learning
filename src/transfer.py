@@ -26,7 +26,7 @@ def main():                     # Best values so far
     punishment = 1
     conditions = (('fc_out', ), ('fc_one', ), ('embed', ), )
 
-    title = f'AE-{int(bidirectional)}-{hidden_dim}-{n_layers}-{intermediate_dim}'
+    title = f'AE-{int(bidirectional)}-{hidden_dim}-{n_layers}-{intermediate_dim}-lr{lr}'
     prefix = 'g1'
     LOADNAME = 'models/autosave/' + prefix + title + '.pt'
     SAVENAME = 'models/autosave/' + prefix + title + '.pt'
