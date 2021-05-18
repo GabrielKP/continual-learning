@@ -3,6 +3,7 @@
 import random
 import torch
 import grammars as g
+import torch.nn.functional as F
 from torch.utils.data.dataloader import DataLoader
 from grammar import GrammarGen, START_TOKEN, SequenceDataset, collate_batch
 from torch import nn
@@ -42,12 +43,16 @@ class Encoder(nn.Module):
         self.ac_one = nn.ReLU()
 
         self.gru = nn.GRU(self.intermediate_dim, self.hidden_dim,
-                            n_layers, batch_first=True, bidirectional=self.bidirectional)
+                          n_layers, batch_first=True, bidirectional=self.bidirectional)
+
+        # Merge bidirectional last hidden output to one since decoder not bidirectional
+        self.fc_hidden = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
 
     def forward(self, seqs):
 
         # Handle sequences separately
 
+        outputs = []
         hiddens = []
 
         for seq in seqs:
@@ -56,13 +61,68 @@ class Encoder(nn.Module):
 
             intermediate = self.dropout(self.ac_one(self.fc_one(embed)))
 
-            _, hidden = self.gru(intermediate.unsqueeze(0))
+            output, hidden = self.gru(intermediate.unsqueeze(0))
 
-            hiddens.append(hidden.squeeze())
+            outputs.append(output.squeeze())
+
+            hidden = hidden.squeeze()
+            hiddens.append(torch.tanh(self.fc_hidden(
+                torch.cat((hidden[-2, :], hidden[-1, :]), dim=0))))
 
         hiddens = torch.stack(hiddens)
 
-        return hiddens
+        # hiddens = [bs, hidden_dim]
+        # outputs = [(bs), seq_len, hidden_dim * 2]
+
+        return outputs, hiddens
+
+
+class Attention(nn.Module):
+
+    def __init__(self, hidden_dim):
+        super(Attention, self).__init__()
+
+        # Takes encoder_hidden_dim * 2 (because of bidirectional) + decoder_hidden_dim
+        # to decoder_hidden_dim
+        self.attn = nn.Linear(hidden_dim * 3, hidden_dim)
+        self.v = nn.Linear(hidden_dim, 1, bias=False)
+
+    def forward(self, hiddens, encoder_outputs):
+
+        # hiddens = [bs, hidden_dim]
+        # encoder_outputs = [(bs), seq_len, hidden_dim * 2]
+
+        bs = len(encoder_outputs)
+        attentions = []
+
+        # Loop throught batch
+        for b in range(bs):
+
+            hidden = hiddens[b]
+            encoder_output = encoder_outputs[b]
+
+            seq_len = encoder_output.shape[0]
+
+            # hidden = [hidden_dim]
+            # encoder_output = [seq_len, hidden_dim * 2]
+
+            hidden = hidden.repeat(seq_len, 1)
+
+            # hidden = [seq_len, hidden_dim]
+
+            energy = torch.tanh(
+                self.attn(torch.cat((hidden, encoder_output), dim=1)))
+
+            # energy = [seq_len, hidden_dim]
+
+            attention = self.v(energy).squeeze()
+
+            # attention = [seq_len]
+
+            attentions.append(F.softmax(attention, dim=0))
+
+        # attentions = [(bs), seq_len]
+        return attentions
 
 
 class Decoder(nn.Module):
@@ -84,7 +144,7 @@ class Decoder(nn.Module):
             self.embed.weight.data = torch.eye(self.embedding_dim)
 
         self.gru = nn.GRU(self.embedding_dim, self.hidden_dim,
-                            self.n_layers, batch_first=True, bidirectional=True)
+                          self.n_layers, batch_first=True, bidirectional=True)
 
         self.fc_out = nn.Linear(intermediate_dim, output_dim)
 
@@ -110,11 +170,12 @@ class Decoder(nn.Module):
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, encoder, decoder):
+    def __init__(self, encoder, decoder, attention):
         super(AutoEncoder, self).__init__()
 
         self.encoder = encoder
         self.decoder = decoder
+        self.attention = attention
 
     def forward(self, labels, seqs, teacher_forcing_ratio=0.5):
 
@@ -124,7 +185,9 @@ class AutoEncoder(nn.Module):
         outputs = []
 
         # Encode
-        hiddens = self.encoder(seqs)
+        encoder_outputs, hiddens = self.encoder(seqs)
+
+        self.attention(hiddens, encoder_outputs)
 
         # First input to decoder is start sequence token
         nInputs = torch.tensor([START_TOKEN] * bs)
@@ -176,7 +239,9 @@ def get_model(input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, us
     decoder = Decoder(input_dim, hidden_dim, intermediate_dim,
                       n_layers, dropout, use_embedding, bidirectional)
 
-    model = AutoEncoder(encoder, decoder)
+    attention = Attention(hidden_dim)
+
+    model = AutoEncoder(encoder, decoder, attention)
     print(model.apply(init_weights))
     print(f'The model has {count_parameters(model):,} trainable parameters')
     return model, optim.AdamW(model.parameters(), lr=lr)
