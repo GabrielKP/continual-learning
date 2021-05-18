@@ -41,7 +41,7 @@ class Encoder(nn.Module):
 
         self.ac_one = nn.ReLU()
 
-        self.gru = nn.GRU(self.intermediate_dim, self.hidden_dim,
+        self.lstm = nn.LSTM(self.intermediate_dim, self.hidden_dim,
                             n_layers, batch_first=True, bidirectional=self.bidirectional)
 
     def forward(self, seqs):
@@ -49,6 +49,7 @@ class Encoder(nn.Module):
         # Handle sequences separately
 
         hiddens = []
+        cells = []
 
         for seq in seqs:
 
@@ -56,13 +57,15 @@ class Encoder(nn.Module):
 
             intermediate = self.dropout(self.ac_one(self.fc_one(embed)))
 
-            _, hidden = self.gru(intermediate.unsqueeze(0))
+            _, (hidden, cell) = self.lstm(intermediate.unsqueeze(0))
 
             hiddens.append(hidden.squeeze())
+            cells.append(cell.squeeze())
 
         hiddens = torch.stack(hiddens)
+        cells = torch.stack(cells)
 
-        return hiddens
+        return hiddens, cells
 
 
 class Decoder(nn.Module):
@@ -83,7 +86,7 @@ class Decoder(nn.Module):
         if not embedding:
             self.embed.weight.data = torch.eye(self.embedding_dim)
 
-        self.gru = nn.GRU(self.embedding_dim, self.hidden_dim,
+        self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim,
                             self.n_layers, batch_first=True, bidirectional=True)
 
         self.fc_out = nn.Linear(intermediate_dim, output_dim)
@@ -95,18 +98,18 @@ class Decoder(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, nInput, hidden):
+    def forward(self, nInput, hidden, cell):
 
         embed = self.dropout(self.embed(nInput))
 
-        output, hidden = self.gru(embed.unsqueeze(
-            0).unsqueeze(0), hidden.unsqueeze(1))
+        output, (hidden, cell) = self.lstm(embed.unsqueeze(
+            0).unsqueeze(0), (hidden.unsqueeze(1), cell.unsqueeze(1)))
 
         intermediate = self.dropout(self.ac_one(self.fc_one(output.squeeze())))
 
         output = self.fc_out(intermediate)
 
-        return output, hidden.squeeze()
+        return output, hidden.squeeze(), cell.squeeze()
 
 
 class AutoEncoder(nn.Module):
@@ -124,7 +127,7 @@ class AutoEncoder(nn.Module):
         outputs = []
 
         # Encode
-        hiddens = self.encoder(seqs)
+        hiddens, cells = self.encoder(seqs)
 
         # First input to decoder is start sequence token
         nInputs = torch.tensor([START_TOKEN] * bs)
@@ -135,6 +138,7 @@ class AutoEncoder(nn.Module):
         for b in range(bs):
             nInput = nInputs[b]
             hidden = hiddens[b]
+            cell = cells[b]
             seq = seqs[b]
 
             seq_out = []
@@ -142,7 +146,7 @@ class AutoEncoder(nn.Module):
             for t in range(1, len(seq)):
 
                 # Decode stimulus
-                output, hidden = self.decoder(nInput, hidden)
+                output, hidden, cell = self.decoder(nInput, hidden, cell)
 
                 # Save output
                 seq_out.append(output)
