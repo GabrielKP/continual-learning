@@ -87,47 +87,32 @@ class Attention(nn.Module):
         self.attn = nn.Linear(hidden_dim * 3, hidden_dim)
         self.v = nn.Linear(hidden_dim, 1, bias=False)
 
-    def forward(self, hiddens, encoder_outputs):
+    def forward(self, hidden, encoder_output):
 
-        # hiddens = [bs, hidden_dim]
-        # encoder_outputs = [(bs), seq_len, hidden_dim * 2]
+        seq_len = encoder_output.shape[0]
 
-        bs = len(encoder_outputs)
-        attentions = []
+        # hidden = [hidden_dim]
+        # encoder_output = [seq_len, hidden_dim * 2]
 
-        # Loop throught batch
-        for b in range(bs):
+        hidden = hidden.repeat(seq_len, 1)
 
-            hidden = hiddens[b]
-            encoder_output = encoder_outputs[b]
+        # hidden = [seq_len, hidden_dim]
 
-            seq_len = encoder_output.shape[0]
+        energy = torch.tanh(
+            self.attn(torch.cat((hidden, encoder_output), dim=1)))
 
-            # hidden = [hidden_dim]
-            # encoder_output = [seq_len, hidden_dim * 2]
+        # energy = [seq_len, hidden_dim]
 
-            hidden = hidden.repeat(seq_len, 1)
+        attention = self.v(energy).squeeze()
 
-            # hidden = [seq_len, hidden_dim]
+        # attention = [seq_len]
 
-            energy = torch.tanh(
-                self.attn(torch.cat((hidden, encoder_output), dim=1)))
-
-            # energy = [seq_len, hidden_dim]
-
-            attention = self.v(energy).squeeze()
-
-            # attention = [seq_len]
-
-            attentions.append(F.softmax(attention, dim=0))
-
-        # attentions = [(bs), seq_len]
-        return attentions
+        return F.softmax(attention, dim=0)
 
 
 class Decoder(nn.Module):
 
-    def __init__(self, output_dim, hidden_dim, intermediate_dim, n_layers, dropout, embedding=True, bidirectional=False):
+    def __init__(self, output_dim, hidden_dim, intermediate_dim, n_layers, dropout, attention, embedding=True):
         super(Decoder, self).__init__()
 
         # Vars
@@ -136,87 +121,135 @@ class Decoder(nn.Module):
         self.embedding_dim = output_dim
         self.n_layers = n_layers
         self.intermediate_dim = intermediate_dim
-        self.bidirectional = bidirectional
+
+        self.attention = attention
 
         # Layers
         self.embed = nn.Embedding(self.output_dim, self.embedding_dim)
         if not embedding:
             self.embed.weight.data = torch.eye(self.embedding_dim)
 
-        self.gru = nn.GRU(self.embedding_dim, self.hidden_dim,
-                          self.n_layers, batch_first=True, bidirectional=True)
+        self.gru = nn.GRU(self.hidden_dim * 2 + self.embedding_dim, self.hidden_dim,
+                          self.n_layers, batch_first=True)
 
-        self.fc_out = nn.Linear(intermediate_dim, output_dim)
+        # hidden_dim * 2 (from attention weighted encoder output) + hidden_dim (from gru layer)
+        # + embed_dim (from embedded input)
+        self.fc_one = nn.Linear(self.hidden_dim * 3 +
+                                self.embedding_dim, self.output_dim)
 
-        self.fc_one = nn.Linear(
-            hidden_dim + hidden_dim * bidirectional, intermediate_dim)
+        # self.fc_out = nn.Linear(intermediate_dim, output_dim)
 
-        self.ac_one = nn.ReLU()
+        # self.ac_one = nn.ReLU()
 
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, nInput, hidden):
+    def forward(self, nInput, hidden, encoder_output):
+
+        # nInput = 1
+        # hidden = [hidden_dim]
+        # encoder_output = [seq_len, hidden_dim * 2]
 
         embed = self.dropout(self.embed(nInput))
 
-        output, hidden = self.gru(embed.unsqueeze(
-            0).unsqueeze(0), hidden.unsqueeze(1))
+        # embed = [embedding_dim]
 
-        intermediate = self.dropout(self.ac_one(self.fc_one(output.squeeze())))
+        embed = embed.unsqueeze(0)
 
-        output = self.fc_out(intermediate)
+        # embed = [1, embedding_dim]
 
-        return output, hidden.squeeze()
+        a = self.attention(hidden, encoder_output)
+
+        # a = [seq_len]
+
+        a = a.unsqueeze(0)
+
+        # a = [1, seq_len]
+
+        weighted = torch.matmul(a, encoder_output)
+
+        # weighted = [1, hidden_dim * 2]
+
+        rnn_input = torch.cat((embed, weighted), dim=1)
+
+        # Predicting one word: seq_len = 1, need to unsqueeze to have one batch
+        # rnn_input = [1, embedding_dim + hidden_dim * 2]
+
+        output, hidden = self.gru(rnn_input.unsqueeze(
+            0), hidden.unsqueeze(0).unsqueeze(0))
+
+        # output = [1, 1, hidden_dim]
+        # hidden = [1, 1, hidden_dim]
+
+        # intermediate = self.dropout(self.ac_one(self.fc_one(output.squeeze())))
+
+        output = output.squeeze(0)
+        hidden = hidden.squeeze(0)
+
+        # output = [1, hidden_dim]
+        # hidden = [1, hidden_dim]
+
+        prediction = self.fc_one(torch.cat((output, weighted, embed), dim=1))
+
+        # prediction = [output_dim]
+
+        return prediction, hidden.squeeze()
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, encoder, decoder, attention):
+    def __init__(self, encoder, decoder):
         super(AutoEncoder, self).__init__()
 
         self.encoder = encoder
         self.decoder = decoder
-        self.attention = attention
 
     def forward(self, labels, seqs, teacher_forcing_ratio=0.5):
 
+        # seqs = [(bs), seq_len]
+        # autoencoder <- don't need labels for teacher_forcing
         bs = len(seqs)
+        vocab_size = self.decoder.output_dim
 
         # Vector to store outputs
         outputs = []
 
-        # Encode
+        # Encoder run
         encoder_outputs, hiddens = self.encoder(seqs)
 
-        self.attention(hiddens, encoder_outputs)
+        # encoder_outputs = [(bs), seq_len, hidden_dim * 2]
+        # hiddens = [bs, hidden_dim]
 
         # First input to decoder is start sequence token
         nInputs = torch.tensor([START_TOKEN] * bs)
 
-        # Decide once beforand for teacherforcing or not
+        # nInputs = [bs]
+
+        # Decide teacherforcing for entire batch
         teacher_forcing = random.random() < teacher_forcing_ratio
 
         for b in range(bs):
             nInput = nInputs[b]
             hidden = hiddens[b]
+            encoder_output = encoder_outputs[b]
             seq = seqs[b]
 
-            seq_out = []
+            # nInput = [1]
+            # hidden = [hidden_dim]
+            # encoder_output = [seq_len, hidden_dim * 2]
+            # seq = [seq_len]
 
-            for t in range(1, len(seq)):
+            seq_len = len(seq)
+            seq_out = torch.zeros((seq_len - 1, vocab_size))
 
-                # Decode stimulus
-                output, hidden = self.decoder(nInput, hidden)
+            for t in range(1, seq_len):
+
+                # Get prediction
+                output, hidden = self.decoder(nInput, hidden, encoder_output)
 
                 # Save output
-                seq_out.append(output)
+                seq_out[t-1] = output
 
                 # Teacher forcing
-                if teacher_forcing:
-                    nInput = seq[t]
-                else:
-                    nInput = output.argmax(-1)
-
-            seq_out = torch.stack(seq_out)
+                nInput = seq[t] if teacher_forcing else output.argmax(-1).squeeze()
 
             outputs.append(seq_out)
 
@@ -234,14 +267,13 @@ def count_parameters(model):
 
 def get_model(input_dim, hidden_dim, intermediate_dim, n_layers, lr, dropout, use_embedding=True, bidirectional=False):
 
+    attention = Attention(hidden_dim)
     encoder = Encoder(input_dim, hidden_dim, intermediate_dim,
                       n_layers, dropout, use_embedding, bidirectional)
     decoder = Decoder(input_dim, hidden_dim, intermediate_dim,
-                      n_layers, dropout, use_embedding, bidirectional)
+                      n_layers, dropout, attention, use_embedding)
 
-    attention = Attention(hidden_dim)
-
-    model = AutoEncoder(encoder, decoder, attention)
+    model = AutoEncoder(encoder, decoder)
     print(model.apply(init_weights))
     print(f'The model has {count_parameters(model):,} trainable parameters')
     return model, optim.AdamW(model.parameters(), lr=lr)
