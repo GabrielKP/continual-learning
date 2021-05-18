@@ -5,18 +5,18 @@ import torch
 from grammar import GrammarGen
 from autoencoder import get_model, freezeParameters, unfreezeParameters, reInitParameters
 from training import fit, plotHist, plotMultipleHist
-from losses import SequenceLoss, allOrNoneloss
+from losses import SequenceLoss, allOrNoneloss, dienesLoss
 from torch import optim
 
 
 def main():                     # Best values so far
     bs = 4                      # 4
     epochs = 1000                # 800 / 2000 for 1 layer
-    lr = 0.01                   # 0.1
+    lr = 0.001                   # 0.1
     teacher_forcing_ratio = 0.5  # 0.5
     use_embedding = True        # True
     bidirectional = True        # True
-    hidden_dim = 30              # 3
+    hidden_dim = 5              # 3
     intermediate_dim = 500      # 200
     n_layers = 1                # 1
     dropout = 0.5
@@ -26,8 +26,8 @@ def main():                     # Best values so far
     punishment = 1
     conditions = (('fc_out', ), ('fc_one', ), ('embed', ), )
 
-    title = f'AE-{int(bidirectional)}-{hidden_dim}-{n_layers}-{intermediate_dim}-lr{lr}'
     prefix = 'g1'
+    title = f'{prefix}AE-{int(bidirectional)}-{hidden_dim}-{n_layers}-{intermediate_dim}-lr{lr}'
     LOADNAME = 'models/autosave/' + prefix + title + '.pt'
     SAVENAME = 'models/autosave/' + prefix + title + '.pt'
     figpath = 'plots/autosave/' + prefix + title + '.png'
@@ -52,6 +52,7 @@ def main():                     # Best values so far
     # Loss Function
     loss_func = SequenceLoss(
         ggen, grammaticality_bias=grammaticality_bias, punishment=punishment)
+    loss_func = dienesLoss
 
     # Check_dls
     check_dls1 = [(g1_train, loss_func, ), (g1_train, allOrNoneloss, ), (g1_test_gr, loss_func, ),

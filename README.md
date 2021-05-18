@@ -179,3 +179,9 @@ decoder.fc_out.weight
 decoder.fc_out.bias
 decoder.fc_one.weight
 decoder.fc_one.bias
+
+## Open Topic
+
+How to measure the transfer?
+Architecture redo
+

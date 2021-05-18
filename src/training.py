@@ -1,6 +1,7 @@
 # Training functions
 
-from losses import allOrNoneloss, cutStartAndEndToken
+from losses import allOrNoneloss, cutStartAndEndToken, softmax
+from torch import nn
 import torch
 import time
 import numpy as np
@@ -184,12 +185,14 @@ def visual_eval(model, test_dl, ggen=None):
                 predlist = cutStartAndEndToken(prediction.tolist())
                 same = trgtlist == predlist
                 if ggen is None:
-                    print(f'Same:{same:2} Truth: {trgtlist} - Pred: {predlist}')
+                    print(
+                        f'Same:{same:2} Truth: {trgtlist} - Pred: {predlist}')
                 else:
                     gramm = ggen.isGrammatical([predlist])[0]
                     trgtlist = ggen.seqs2stim([trgtlist])[0]
                     predlist = ggen.seqs2stim([predlist])[0]
-                    print(f'Same:{same:2} Gramm:{gramm:2} Truth: {trgtlist} - Pred: {predlist}')
+                    print(
+                        f'Same:{same:2} Gramm:{gramm:2} Truth: {trgtlist} - Pred: {predlist}')
                     if not same:
                         wrong += 1
                         if not gramm:
@@ -200,3 +203,35 @@ def visual_eval(model, test_dl, ggen=None):
         if ggen is not None:
             print(f"Wrong {wrong:2}/{i:2} - Wrong-ugr {wrong_ugr:2}/{wrong:2}")
     return ret
+
+
+def one_hot(seqs, vocabsize):
+    eye = torch.eye(vocabsize)
+    return [eye[seq.type(torch.long)] for seq in seqs]
+
+
+def dienes_eval(model, test_dl, ggen, k, T):
+    cosSim = nn.CosineSimilarity(0)
+    gep = 0
+    lp = 0
+
+    model.eval()
+    with torch.no_grad():
+        for labels, seqs in test_dl:
+            outputs = model(labels, seqs, teacher_forcing_ratio=0)
+            inputs = one_hot(seqs, len(ggen))
+
+            for i, output in enumerate(outputs):
+                flat_out = output.flatten()
+                flat_inp = inputs[i][1:].flatten()
+
+                cos = cosSim(flat_inp, flat_out)
+                p = 1 / (1 + (-k*cos-T).exp())
+                if p >= 0.5:
+                    gep += 1
+                else:
+                    lp += 1
+
+                #print(f"seqs: {seqs[i].tolist()[1:-1]} cos: {cos:.3} p: {p}")
+
+        print(f"gep: {gep} lp: {lp}")

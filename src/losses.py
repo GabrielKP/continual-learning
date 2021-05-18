@@ -104,3 +104,29 @@ def allOrNoneloss(output, labels):
         predlist = cutStartAndEndToken(prediction.tolist())
         ret.append(not predlist == trgtlist)
     return torch.tensor(sum(ret))
+
+
+def sigmoid(x, k, T):
+    return 1 / (1 + (-k*x-T).exp())
+
+
+def one_hot(seqs, vocabsize):
+    eye = torch.eye(vocabsize)
+    return [eye[seq.type(torch.long)] for seq in seqs]
+
+
+def dienesLoss(outputs, labels, k=1, T=0):
+
+    bs = len(outputs)
+
+    dLoss = torch.zeros(bs)
+    cos = nn.CosineSimilarity(0)
+    inputs = one_hot(labels, 8)
+
+    for b, input in enumerate(inputs):
+        flat_out = outputs[b].flatten()
+        flat_inp = input[1:].flatten()
+
+        dLoss[b] = sigmoid(cos(flat_out, flat_inp), k, T)
+
+    return (torch.ones(bs) - dLoss).mean()

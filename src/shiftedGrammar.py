@@ -3,7 +3,7 @@ import grammars as g
 
 from grammar import *
 from autoencoder import get_model, freezeParameters, unfreezeParameters, reInitParameters
-from training import fit, plotMultipleHist
+from training import fit, one_hot, plotMultipleHist
 from losses import SequenceLoss, allOrNoneloss
 from torch import optim
 
@@ -28,11 +28,12 @@ def main():                     # Best values so far
     SAVENAME = '../models/last-training_shifted.pt'
 
     # Grammar
-    ggen = GrammarGen(g.g3())
+    ggen = GrammarGen(g.g1())
+    ggen2 = GrammarGen(g.g3())
 
-    print(ggen.grammar)
-    print(ggen.stim2out)
-    print(ggen.number_grammar)
+    train = ggen.stim2seqs( g.g1_train() )
+    print( train[0] )
+    print( one_hot( train[0], len(ggen) ) )
 
     return
     # Note: BATCH IS IN FIRST DIMENSION
