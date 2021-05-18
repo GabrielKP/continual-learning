@@ -52,7 +52,6 @@ def main():                     # Best values so far
     # Loss Function
     loss_func = SequenceLoss(
         ggen, grammaticality_bias=grammaticality_bias, punishment=punishment)
-    loss_func = dienesLoss
 
     # Check_dls
     check_dls1 = [(g1_train, loss_func, ), (g1_train, allOrNoneloss, ), (g1_test_gr, loss_func, ),
