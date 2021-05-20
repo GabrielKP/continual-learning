@@ -83,7 +83,7 @@ class Decoder(nn.Module):
         if not embedding:
             self.embed.weight.data = torch.eye(self.embedding_dim)
 
-        self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim,
+        self.gru = nn.GRU(self.embedding_dim, self.hidden_dim,
                             self.n_layers, batch_first=True, bidirectional=True)
 
         self.fc_out = nn.Linear(intermediate_dim, output_dim)
@@ -99,7 +99,7 @@ class Decoder(nn.Module):
 
         embed = self.dropout(self.embed(nInput))
 
-        output, hidden = self.lstm(embed.unsqueeze(
+        output, hidden = self.gru(embed.unsqueeze(
             0).unsqueeze(0), hidden.unsqueeze(1))
 
         intermediate = self.dropout(self.ac_one(self.fc_one(output.squeeze())))
