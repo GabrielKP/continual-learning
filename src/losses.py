@@ -130,3 +130,34 @@ def dienesLoss(outputs, labels, k=1, T=0):
         dLoss[b] = sigmoid(cos(flat_out, flat_inp), k, T)
 
     return (torch.ones(bs) - dLoss).mean()
+
+
+class lossBasedAllorNone():
+
+    def __init__(self, threshhold, ignore_index=-1):
+
+        self.CEloss = nn.CrossEntropyLoss(ignore_index=ignore_index)
+        self.threshhold = threshhold
+
+
+    def __call__(self, outputs, labels):
+
+        bs = len(outputs)
+
+        CEloss = torch.zeros(bs)
+
+        for b in range(bs):
+
+            # Cross Entropy loss
+            CEOutput = outputs[b]
+            # Cut off starting token and conver to long
+            CELabel = labels[b][1:].type(torch.long)
+
+            CEloss[b] = self.CEloss(CEOutput, CELabel)
+
+        # Convert treshold to 1
+        below = CEloss < self.threshhold
+        CEloss[below] = 1
+        CEloss[~below] = 0
+
+        return CEloss.sum()
