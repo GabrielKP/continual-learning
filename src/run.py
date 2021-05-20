@@ -1,22 +1,22 @@
 # File to load and test models
 
-from losses import allOrNoneloss
+from losses import allOrNoneloss, lossBasedAllorNone
 import torch
 import grammars as g
-from autoencoder import SequenceLoss, evaluate, get_model, visual_eval
+from ae_gru import SequenceLoss, evaluate, get_model, visual_eval
 from grammar import GrammarGen, DataLoader, SequenceDataset, collate_batch
-from training import dienes_eval
+from training import dienes_eval, generic_visual_eval
 
 
 def main():
 
-    LOADNAME = 'models/autosave/g1AE-1-5-1-500-lr0.001.pt'
+    LOADNAME = 'models/autosave/g1-gru-AE-1-5-1-600-lr0.001.pt'
     bs = 4
     lr = 0.0001                         # Learning rate
     use_embedding = True                # Embedding Yes/No
     bidirectional = True                # bidirectional lstm layer Yes/o
     hidden_dim = 5                      # Lstm Neurons
-    intermediate_dim = 500              # Intermediate Layer Neurons
+    intermediate_dim = 600              # Intermediate Layer Neurons
     n_layers = 1                        # Lstm Layers
     dropout = 0.5
     grammaticality_bias = 0
@@ -40,13 +40,20 @@ def main():
 
     print('\nTest - Grammatical')
     print(visual_eval(model, g1_test_gr, ggen))
-    print(evaluate(model, loss_func, g1_test_gr))
+    loss = evaluate(model, loss_func, g1_test_gr)
+    print(loss)
     print(evaluate(model, allOrNoneloss, g1_test_gr))
+
+    lossBased_lossfunc = lossBasedAllorNone( loss * 2 )
+
+    generic_visual_eval(model, lossBased_lossfunc, g1_test_gr)
 
     print('\nTest - Ungrammatical')
     visual_eval(model, g1_test_ugr, ggen)
     print(evaluate(model, loss_func, g1_test_ugr))
     print(evaluate(model, allOrNoneloss, g1_test_ugr))
+
+    generic_visual_eval(model, lossBased_lossfunc, g1_test_ugr)
 
     k=1
     T=-0.164
