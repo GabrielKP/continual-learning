@@ -135,11 +135,11 @@ class Decoder(nn.Module):
         # hidden_dim * 2 (from attention weighted encoder output) + hidden_dim (from gru layer)
         # + embed_dim (from embedded input)
         self.fc_one = nn.Linear(self.hidden_dim * 3 +
-                                self.embedding_dim, self.output_dim)
+                                self.embedding_dim, self.intermediate_dim)
 
-        # self.fc_out = nn.Linear(intermediate_dim, output_dim)
+        self.fc_out = nn.Linear(self.intermediate_dim, self.output_dim)
 
-        # self.ac_one = nn.ReLU()
+        self.ac_one = nn.ReLU()
 
         self.dropout = nn.Dropout(dropout)
 
@@ -188,9 +188,13 @@ class Decoder(nn.Module):
         # output = [1, hidden_dim]
         # hidden = [1, hidden_dim]
 
-        prediction = self.fc_one(torch.cat((output, weighted, embed), dim=1))
+        intermediate = self.ac_one(self.fc_one(torch.cat((output, weighted, embed), dim=1)))
 
-        # prediction = [output_dim]
+        # intermediate = [1, intermediate_dim]
+
+        prediction = self.fc_out(intermediate)
+
+        # prediction = [1, output_dim]
 
         return prediction, hidden.squeeze()
 
@@ -249,7 +253,8 @@ class AutoEncoder(nn.Module):
                 seq_out[t-1] = output
 
                 # Teacher forcing
-                nInput = seq[t] if teacher_forcing else output.argmax(-1).squeeze()
+                nInput = seq[t] if teacher_forcing else output.argmax(
+                    -1).squeeze()
 
             outputs.append(seq_out)
 
@@ -334,87 +339,3 @@ def unfreezeParameters(model, conditions):
     def unfreeze(param):
         param.requires_grad = True
     applyOnParameters(model, conditions, unfreeze)
-
-
-def main():                     # Best values so far
-    bs = 4                      # 4
-    epochs = 200                # 800 / 2000 for 1 layer
-    lr = 0.01                   # 0.1
-    teacher_forcing_ratio = 0.5  # 0.5
-    use_embedding = True        # True
-    bidirectional = True        # True
-    hidden_dim = 3              # 3
-    intermediate_dim = 200      # 200
-    n_layers = 1                # 1
-    dropout = 0.5
-    start_from_scratch = True
-    grammaticality_bias = 0
-    punishment = 1
-    # 4.pt 200 5 3
-    # 5.pt 100 5 3
-    LOADNAME = '../models/last-training1.pt'
-    SAVENAME = '../models/last-training1.pt'
-    # Grammar
-    ggen = GrammarGen()
-
-    # Note: BATCH IS IN FIRST DIMENSION
-    # Train
-    train_seqs = ggen.stim2seqs(g.g0_train())
-    train_ds = SequenceDataset(train_seqs)
-    train_dl = DataLoader(train_ds, batch_size=bs,
-                          shuffle=True, collate_fn=collate_batch)
-
-    # Validation
-    valid_seqs = ggen.generate(8)
-    valid_ds = SequenceDataset(valid_seqs)
-    valid_dl = DataLoader(valid_ds, batch_size=bs, collate_fn=collate_batch)
-
-    # Test - Correct
-    test_seqs = ggen.stim2seqs(g.g0_test_gr())
-    test_ds = SequenceDataset(test_seqs)
-    test_dl = DataLoader(test_ds, batch_size=bs, collate_fn=collate_batch)
-
-    # Test - Incorrect
-    test_incorrect_seqs = ggen.stim2seqs(g.g0_test_ugr())
-    test_incorrect_ds = SequenceDataset(test_incorrect_seqs)
-    test_incorrect_dl = DataLoader(
-        test_incorrect_ds, batch_size=bs * 2, collate_fn=collate_batch)
-
-    input_dim = len(ggen)
-
-    # Get Model
-    model, opt = get_model(input_dim, hidden_dim, intermediate_dim,
-                           n_layers, lr, dropout, use_embedding, bidirectional)
-    if not start_from_scratch:
-        model.load_state_dict(torch.load(LOADNAME))
-
-    # Loss Function
-    # loss_func = nn.CrossEntropyLoss( ignore_index=PAD_TOKEN, reduction='sum' )
-    loss_func = SequenceLoss(ggen, ignore_index=PAD_TOKEN,
-                             grammaticality_bias=grammaticality_bias, punishment=punishment)
-
-    # Train
-    hist_train, hist_valid = fit(
-        epochs, model, loss_func, opt, train_dl, train_dl, teacher_forcing_ratio, SAVENAME)
-
-    # Load best model
-    model.load_state_dict(torch.load(SAVENAME))
-
-    plotHist((hist_train, 'Train', ), (hist_valid, 'Valid'))
-
-    # Test
-    print('\nTrain')
-    visual_eval(model, train_dl)
-    print(evaluate(model, loss_func, train_dl))
-
-    print('\nTest - Correct')
-    visual_eval(model, test_dl)
-    print(evaluate(model, loss_func, test_dl))
-
-    print('\nTest - Incorrect')
-    visual_eval(model, test_incorrect_dl)
-    print(evaluate(model, loss_func, test_incorrect_dl))
-
-
-if __name__ == '__main__':
-    main()
