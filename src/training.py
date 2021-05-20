@@ -205,6 +205,30 @@ def visual_eval(model, test_dl, ggen=None):
     return ret
 
 
+def generic_visual_eval(model, loss_func, test_dl):
+    summedLoss = 0
+    model.eval()
+    with torch.no_grad():
+        for labels, seqs in test_dl:
+            output = model(labels, seqs, teacher_forcing_ratio=0)
+
+            for b, seq in enumerate(seqs):
+                prediction = output[b].argmax(-1)
+                trgtlist = seq.tolist()[1:-1]
+                predlist = cutStartAndEndToken(prediction.tolist())
+                same = trgtlist == predlist
+
+                label = labels[b].unsqueeze(0)
+                seq = seqs[b].unsqueeze(0)
+                loss, _ = loss_batch(model, loss_func, label, seq, 0)
+                summedLoss += loss
+                print(
+                    f'Same:{same:2} Loss:{loss:2.3} Truth: {trgtlist} - Pred: {predlist}')
+
+    print( f'Summed Loss: {summedLoss}' )
+    return
+
+
 def one_hot(seqs, vocabsize):
     eye = torch.eye(vocabsize)
     return [eye[seq.type(torch.long)] for seq in seqs]
