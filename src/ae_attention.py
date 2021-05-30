@@ -2,21 +2,15 @@
 
 import random
 import torch
-import grammars as g
 import torch.nn.functional as F
 from torch.utils.data.dataloader import DataLoader
-from grammar import GrammarGen, START_TOKEN, SequenceDataset, collate_batch
+from grammar import START_TOKEN, END_TOKEN, PAD_TOKEN
 from torch import nn
 from torch import optim
-from training import fit, visual_eval, evaluate, plotHist
-from losses import SequenceLoss
-
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-PAD_TOKEN = 0   # ugly but works for now
-END_TOKEN = 2
-CLIP = 0.5
-
 
 class Encoder(nn.Module):
 
@@ -26,9 +20,9 @@ class Encoder(nn.Module):
         # Vars
         self.hidden_dim = hidden_dim
         self.input_dim = input_dim
-        self.embedding_dim = input_dim
+        self.embedding_dim = intermediate_dim
         self.n_layers = n_layers
-        self.intermediate_dim = intermediate_dim
+        # self.intermediate_dim = intermediate_dim
         self.bidirectional = bidirectional
 
         # Layers
@@ -36,17 +30,17 @@ class Encoder(nn.Module):
         if not embedding:
             self.embed.weight.data = torch.eye(input_dim)
 
-        self.dropout = nn.Dropout(dropout)
+        # self.fc_one = nn.Linear(self.embedding_dim, self.intermediate_dim)
 
-        self.fc_one = nn.Linear(self.embedding_dim, self.intermediate_dim)
+        # self.ac_one = nn.ReLU()
 
-        self.ac_one = nn.ReLU()
-
-        self.gru = nn.GRU(self.intermediate_dim, self.hidden_dim,
+        self.gru = nn.GRU(self.embedding_dim, self.hidden_dim,
                           n_layers, batch_first=True, bidirectional=self.bidirectional)
 
         # Merge bidirectional last hidden output to one since decoder not bidirectional
         self.fc_hidden = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
+
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, seqs):
 
@@ -59,9 +53,18 @@ class Encoder(nn.Module):
 
             embed = self.dropout(self.embed(seq))
 
-            intermediate = self.dropout(self.ac_one(self.fc_one(embed)))
+            # embed = [seq_len, embed_dim]
 
-            output, hidden = self.gru(intermediate.unsqueeze(0))
+            embed = embed.unsqueeze(0)
+
+            # embed = [1, seq_len, embed_dim]
+
+            # intermediate = self.dropout(self.ac_one(self.fc_one(embed)))
+
+            output, hidden = self.gru(embed)
+
+            # output = [1, seq_len, hidden_dim * directions]
+            # hidden = [directions * layers, 1, hidden_dim]
 
             outputs.append(output.squeeze())
 
@@ -118,9 +121,9 @@ class Decoder(nn.Module):
         # Vars
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
-        self.embedding_dim = output_dim
+        self.embedding_dim = intermediate_dim
         self.n_layers = n_layers
-        self.intermediate_dim = intermediate_dim
+        # self.intermediate_dim = intermediate_dim
 
         self.attention = attention
 
@@ -134,16 +137,16 @@ class Decoder(nn.Module):
 
         # hidden_dim * 2 (from attention weighted encoder output) + hidden_dim (from gru layer)
         # + embed_dim (from embedded input)
-        self.fc_one = nn.Linear(self.hidden_dim * 3 +
-                                self.embedding_dim, self.intermediate_dim)
+        # self.fc_one = nn.Linear(self.hidden_dim * 3 +
+        #                         self.embedding_dim, self.intermediate_dim)
 
-        self.fc_out = nn.Linear(self.intermediate_dim, self.output_dim)
+        self.fc_out = nn.Linear(self.hidden_dim * 3 + self.embedding_dim, self.output_dim)
 
-        self.ac_one = nn.ReLU()
+        # self.ac_one = nn.ReLU()
 
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, nInput, hidden, encoder_output):
+    def forward(self, nInput, hidden, encoder_output, returnAttention=False):
 
         # nInput = 1
         # hidden = [hidden_dim]
@@ -174,13 +177,11 @@ class Decoder(nn.Module):
         # Predicting one word: seq_len = 1, need to unsqueeze to have one batch
         # rnn_input = [1, embedding_dim + hidden_dim * 2]
 
-        output, hidden = self.gru(rnn_input.unsqueeze(
-            0), hidden.unsqueeze(0).unsqueeze(0))
+        output, hidden = self.gru(rnn_input.unsqueeze(0),
+                                  hidden.unsqueeze(0).unsqueeze(0))
 
         # output = [1, 1, hidden_dim]
         # hidden = [1, 1, hidden_dim]
-
-        # intermediate = self.dropout(self.ac_one(self.fc_one(output.squeeze())))
 
         output = output.squeeze(0)
         hidden = hidden.squeeze(0)
@@ -188,13 +189,20 @@ class Decoder(nn.Module):
         # output = [1, hidden_dim]
         # hidden = [1, hidden_dim]
 
-        intermediate = self.ac_one(self.fc_one(torch.cat((output, weighted, embed), dim=1)))
+        # intermediate = self.dropout(self.ac_one(self.fc_one(torch.cat((output, weighted, embed), dim=1))))
 
         # intermediate = [1, intermediate_dim]
 
-        prediction = self.fc_out(intermediate)
+        predinput = torch.cat((output, weighted, embed), dim=1)
+
+        # predinput = [1, hidden_dim * 3 + embed_dim]
+
+        prediction = self.fc_out(predinput)
 
         # prediction = [1, output_dim]
+
+        if returnAttention:
+            return prediction, hidden.squeeze(), a
 
         return prediction, hidden.squeeze()
 
@@ -206,7 +214,7 @@ class AutoEncoder(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
 
-    def forward(self, labels, seqs, teacher_forcing_ratio=0.5):
+    def forward(self, labels, seqs, teacher_forcing_ratio=0.5, returnAttention=False):
 
         # seqs = [(bs), seq_len]
         # autoencoder <- don't need labels for teacher_forcing
@@ -227,9 +235,6 @@ class AutoEncoder(nn.Module):
 
         # nInputs = [bs]
 
-        # Decide teacherforcing for entire batch
-        teacher_forcing = random.random() < teacher_forcing_ratio
-
         for b in range(bs):
             nInput = nInputs[b]
             hidden = hiddens[b]
@@ -244,10 +249,20 @@ class AutoEncoder(nn.Module):
             seq_len = len(seq)
             seq_out = torch.zeros((seq_len - 1, vocab_size))
 
+            if returnAttention:
+                attentions = torch.zeros((seq_len - 1, seq_len))
+
+            # Decide teacherforcing for entire sequence
+            teacher_forcing = random.random() < teacher_forcing_ratio
+
             for t in range(1, seq_len):
 
                 # Get prediction
-                output, hidden = self.decoder(nInput, hidden, encoder_output)
+                if returnAttention:
+                    output, hidden, attention = self.decoder(nInput, hidden, encoder_output, returnAttention)
+                    attentions[t-1] = attention
+                else:
+                    output, hidden = self.decoder(nInput, hidden, encoder_output)
 
                 # Save output
                 seq_out[t-1] = output
@@ -258,7 +273,34 @@ class AutoEncoder(nn.Module):
 
             outputs.append(seq_out)
 
+        if returnAttention:
+            return outputs, attentions
         return outputs
+
+
+def displayAttention(model, seq):
+    seq = seq.unsqueeze(0)
+    outputs, attention = model(seq, seq, teacher_forcing_ratio=0, returnAttention=True)
+    pred = outputs[0].argmax(-1).tolist()
+    seq = seq.squeeze().tolist()
+
+    fig = plt.figure(figsize=(10,10))
+    ax = fig.add_subplot(111)
+
+    attention = attention.cpu().detach().numpy()
+
+    cax = ax.matshow(attention, cmap='bone')
+
+    ax.tick_params(labelsize=15)
+    ax.set_xticklabels(['']+seq,
+                       rotation=45)
+    ax.set_yticklabels(['']+pred)
+
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+
+    plt.show()
+    plt.close()
 
 
 def init_weights(m):

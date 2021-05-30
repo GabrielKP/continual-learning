@@ -2,7 +2,7 @@
 import grammars as g
 
 from grammar import *
-from autoencoder import get_model, freezeParameters, unfreezeParameters, reInitParameters
+from ae_lstm import get_model, freezeParameters, unfreezeParameters, reInitParameters
 from training import fit, one_hot, plotMultipleHist
 from losses import SequenceLoss, allOrNoneloss
 from torch import optim
@@ -30,6 +30,9 @@ def main():                     # Best values so far
     # Grammar
     ggen = GrammarGen(g.g1())
     ggen2 = GrammarGen(g.g3())
+
+    print( ggen.cores, ggen.stim2nbr )
+    return
 
     train = ggen.stim2seqs( g.g1_train() )
     print( train[0] )
