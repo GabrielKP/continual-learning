@@ -57,10 +57,10 @@ incorrect: ['A','G','F','D','C'],
 Original from A.S. Reuber, 1969:
 
 Grammar 1:
-<img src="data/grammar-1.png" alt="grammar" width="400"/>
+<img src="agl/data/grammar-1.png" alt="grammar" width="400"/>
 
 Grammar 2:
-<img src="data/grammar-2.png" alt="grammar" width="400"/>
+<img src="agl/data/grammar-2.png" alt="grammar" width="400"/>
 
 - Every token on average the same information
 - Both Grammars exactly 43 different paths from start to finish with length <= 8
