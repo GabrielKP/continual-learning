@@ -1,5 +1,56 @@
 # Continual-Learning
 
+The repository is split into two sections:
+1. agl
+2. mnist
+
+The agl notebook contains a DynaMoE, AdaMoE, Ensembler, Ansembler model
+to learn artificial grammars continually.
+
+The mnist notebook contains an Ensembling network from this paper:
+https://arxiv.org/pdf/2004.12908v5.pdf
+and an adapted version which does "local" ensembling. The performance is
+compared on the MNIST dataset together with performance of Synaptic Intelligence
+
+## AGL Part
+
+This part was inspired by the thought of repeating the Milne et al AGL
+experiment for humans and compare it to simulations on the computer. Since
+training is only happening on one class, direct classification cannot happen
+based on training of labels, thus the computer model consists of an RNN which
+aims to reconstruct the learned sequences. For that a non-state-of-the-art
+Sequence2Sequence model is used. It is important the model does not generalize
+too easily (as transformers, I have tried) because it will not be able to
+distinguish ungrammatical and grammatical sequences - which often only differ
+by edit distance 1. Continual learning for the model on the computer is realized
+by different methods: the mixture of expert model DynaMoE from
+[this](https://doi.org/10.1073/pnas.2009591117) paper is implemented with some
+adaptions for the supervised setting. The model makes use of a mixture of
+experts: multiple experts are individually trained and a gating network decides
+which expert to use. Although the original model recognizes
+when a new expert needs to initialized, after it does that the old expert
+becomes untrainable. Furthermore it makes use of some sort of "learning oracle":
+the model assumes that only the same task is fed to it until convergence.
+
+Thus, the model is further developed to automatically assign its incoming
+training examples to the different experts depending on the classification
+error. Furthermore, original task data is replayed to the gating network
+to prevent the gating from catastrophically forgetting which experts to assign
+inputs to.
+
+Another model is built: the ensembler. Instead of choosing an expert, the
+ensembler multiplies the experts outputs and adds them. Thus, intermediate
+outputs between experts outputs are possible. The model has an essential flaw:
+due to self-reinforcing effects when training with backprop the model always
+converges to one expert doing all the heavy lifting with all other models
+being basically useless.
+
+The model is improved by a replay mechanism and a custom training mechanism, in
+which the error is not entirely backpropagated through the gating to the
+experts, but a specific expert is chosen based on the classification error to
+be trained. This prevents the expert overpreference problem from above.
+Furthermore the gating is equipped with replay of old task data to not forget
+old inputs.
 ### Artificial Grammar Learning Experiment Milne et al 2018
 
 Familiarisation -> Test -> Refamilarisation -> Test ...
@@ -51,6 +102,9 @@ incorrect: ['A','G','D','C','F'],
 incorrect: ['A','G','F','D','C'],
 ```
 ## Grammars
+
+Following section contains visualizations of alternate grammars, in the
+end we decided to use the original grammar from Milne et al.
 
 ### Grammatical
 
@@ -139,12 +193,6 @@ CP -> C + (G)
 FP -> F + (CP)
 ```
 
-### Shifted Grammar experiment
-
-1. Train on basis grammar
-2. Reinitiate specific layers
-3. Train on basis grammar again
-
 ## Model architecture
 
 ### Encoder
@@ -153,35 +201,3 @@ FP -> F + (CP)
 ### Decoder (single token decoder)
                             Hidden -> \
  PrevToken -> Embedding -> Dropout -> LSTM -> fc_one -> ReLU -> dropout -> fc_out -> Output/Hidden
-## Model parameters
-
-encoder.embed.weight
-encoder.lstm.weight_ih_l0
-encoder.lstm.weight_hh_l0
-encoder.lstm.bias_ih_l0
-encoder.lstm.bias_hh_l0
-encoder.lstm.weight_ih_l0_reverse
-encoder.lstm.weight_hh_l0_reverse
-encoder.lstm.bias_ih_l0_reverse
-encoder.lstm.bias_hh_l0_reverse
-encoder.fc_one.weight
-encoder.fc_one.bias
-decoder.embed.weight
-decoder.lstm.weight_ih_l0
-decoder.lstm.weight_hh_l0
-decoder.lstm.bias_ih_l0
-decoder.lstm.bias_hh_l0
-decoder.lstm.weight_ih_l0_reverse
-decoder.lstm.weight_hh_l0_reverse
-decoder.lstm.bias_ih_l0_reverse
-decoder.lstm.bias_hh_l0_reverse
-decoder.fc_out.weight
-decoder.fc_out.bias
-decoder.fc_one.weight
-decoder.fc_one.bias
-
-## Open Topic
-
-How to measure the transfer?
-Architecture redo
-
