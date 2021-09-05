@@ -1,18 +1,15 @@
 # Continual-Learning
 
-The repository is split into two sections:
-1. agl
-2. mnist
+The repository has two important parts:
+1. cifar10x10.ipynb
+2. agl
 
-The agl notebook contains a DynaMoE, AdaMoE, Ensembler, Ansembler model
-to learn artificial grammars continually.
+## cifar10x10.ipynb
 
-The mnist notebook contains an Ensembling network from this paper:
-https://arxiv.org/pdf/2004.12908v5.pdf
-and an adapted version which does "local" ensembling. The performance is
-compared on the MNIST dataset together with performance of Synaptic Intelligence
+The notebook contains an algorithmic basis to test continual learning algorithms.
+It implements Finetune, (more to come).
 
-## AGL Part
+## AGL Folder
 
 This part was inspired by the thought of repeating the Milne et al AGL
 experiment for humans and compare it to simulations on the computer. Since
