@@ -182,10 +182,10 @@ with length <= 8
 Converted from Gomez & Schwaneveldt, 1994
 
 Grammar 1:
-<img src="data/grammar-3.png" alt="grammar" width="400"/>
+<img src="agl/data/grammar-3.png" alt="grammar" width="400"/>
 
 Grammar 2:
-<img src="data/grammar-4.png" alt="grammar" width="400"/>
+<img src="agl/data/grammar-4.png" alt="grammar" width="400"/>
 
 #### Ungrammatical sequence constraints
 To create ungrammatical sequences different people use
